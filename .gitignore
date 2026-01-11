@@ -1,0 +1,37 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env*
+!.env.example
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDEs
+.vscode/
+.idea/
+.cursorrules
+
+# Node (for frontend_admin if it's there)
+node_modules/
+dist/
+build/
+.next/
+
+# Project specific
+xx/

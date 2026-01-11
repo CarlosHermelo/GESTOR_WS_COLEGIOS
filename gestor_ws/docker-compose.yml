@@ -1,0 +1,70 @@
+services:
+  # Base de datos PostgreSQL para Gestor WS
+  postgres:
+    image: postgres:15
+    container_name: gestor_ws_postgres
+    environment:
+      POSTGRES_DB: gestor_ws
+      POSTGRES_USER: gestor_user
+      POSTGRES_PASSWORD: gestor_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - gestor_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestor_user -d gestor_ws"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gestor_network
+
+  # API FastAPI - Gestor WS
+  api:
+    build: .
+    container_name: gestor_ws_api
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://gestor_user:gestor_pass@postgres:5432/gestor_ws
+      
+      # ERP Mock (desde Docker se usa host.docker.internal)
+      ERP_TYPE: mock
+      MOCK_ERP_URL: http://host.docker.internal:8001
+      
+      # LLM Configuration (se leen desde .env)
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5-nano}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4000}
+      
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      
+      # WhatsApp
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-dummy_token}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-dummy_id}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-mi_token_secreto}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+    networks:
+      - gestor_network
+    # Para Windows/Mac, permitir acceso a host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  gestor_data:
+    driver: local
+
+networks:
+  gestor_network:
+    driver: bridge
+

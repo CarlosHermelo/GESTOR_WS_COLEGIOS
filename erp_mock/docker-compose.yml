@@ -1,0 +1,56 @@
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: erp_mock_postgres
+    environment:
+      POSTGRES_DB: erp_mock
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - erp_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_mock"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - erp_network
+
+  # API FastAPI
+  api:
+    build: .
+    container_name: erp_mock_api
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://erp_user:erp_pass@postgres:5432/erp_mock
+      GESTOR_WS_URL: http://host.docker.internal:8000
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+    networks:
+      - erp_network
+    # Healthcheck para la API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  erp_data:
+    driver: local
+
+networks:
+  erp_network:
+    driver: bridge
+

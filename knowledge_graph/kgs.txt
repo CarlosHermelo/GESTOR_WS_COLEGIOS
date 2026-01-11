@@ -1,0 +1,352 @@
+================================================================================
+   KNOWLEDGE GRAPH + ANALYTICS (FASE 4) - GUÍA DE INSTALACIÓN Y OPERACIÓN
+================================================================================
+
+DESCRIPCIÓN:
+Sistema de Knowledge Graph con Neo4j para análisis predictivo de mora y 
+deserción escolar. Utiliza IA (Google Gemini / OpenAI) para clasificar 
+perfiles de pagadores, generar clusters de comportamiento e insights predictivos.
+
+================================================================================
+                           REQUISITOS PREVIOS
+================================================================================
+
+1. Docker y Docker Compose instalados
+2. ERP Mock corriendo en puerto 8001
+3. Gestor WS corriendo en puerto 8000
+4. API Key de Google Gemini o OpenAI (configurada en gestor_ws/.env)
+
+================================================================================
+                         PASO 1: LEVANTAR SERVICIOS
+================================================================================
+
+# Navegar a la carpeta del Knowledge Graph
+cd C:\Users\u14527001\Downloads\GESTOR_WS\knowledge_graph
+
+# Levantar todos los servicios (Neo4j, Redis, API, Celery)
+docker-compose up -d
+
+# Verificar que los servicios estén corriendo
+docker-compose ps
+
+SERVICIOS ESPERADOS:
+- knowledge_graph_api          (puerto 8002)
+- knowledge_graph_neo4j        (puertos 7474, 7687)
+- knowledge_graph_redis        (puerto 6379)
+- knowledge_graph_celery_worker
+- knowledge_graph_celery_beat
+
+================================================================================
+                    PASO 2: INICIALIZAR BASE DE DATOS NEO4J
+================================================================================
+
+# Crear constraints e índices en Neo4j
+docker exec knowledge_graph_api python scripts/init_graph.py
+
+SALIDA ESPERADA:
+============================================================
+INICIALIZACIÓN DEL KNOWLEDGE GRAPH
+============================================================
+📦 Conectando a Neo4j...
+   ✅ Conectado
+🔒 Creando constraints...
+   ✅ responsable_erp_id
+   ✅ estudiante_erp_id
+   ✅ cuota_erp_id
+   ✅ cluster_tipo
+   ✅ grado_nombre
+📇 Creando índices...
+   ✅ (7 índices creados)
+✅ INICIALIZACIÓN COMPLETADA
+
+================================================================================
+           PASO 3: POBLAR DATOS DE PRUEBA (SI NO HAY DATOS)
+================================================================================
+
+# Generar datos en ERP Mock (si está vacío)
+docker exec erp_mock_api python scripts/seed.py
+
+# Sincronizar cache de Gestor WS desde ERP Mock
+# (Ejecutar estos comandos en PowerShell)
+
+# Responsables
+$responsables = docker exec erp_mock_postgres psql -U erp_user -d erp_mock -t -A -c "SELECT id, nombre, apellido, whatsapp FROM erp_responsables;"
+foreach ($row in $responsables) { 
+    if ($row -match '\S') { 
+        $data = $row.Split('|')
+        $sql = "INSERT INTO cache_responsables (id, erp_responsable_id, nombre, apellido, whatsapp, ultima_sync) VALUES (gen_random_uuid(), '$($data[0])', '$($data[1])', '$($data[2])', '$($data[3])', NOW()) ON CONFLICT (erp_responsable_id) DO UPDATE SET nombre=EXCLUDED.nombre, apellido=EXCLUDED.apellido, whatsapp=EXCLUDED.whatsapp, ultima_sync=NOW();"
+        docker exec gestor_ws_postgres psql -U gestor_user -d gestor_ws -c $sql
+    }
+}
+
+# Alumnos
+$alumnos = docker exec erp_mock_postgres psql -U erp_user -d erp_mock -t -A -c "SELECT a.id, a.nombre, a.apellido, a.grado, r.responsable_id FROM erp_alumnos a LEFT JOIN erp_responsabilidad r ON a.id = r.alumno_id;"
+foreach ($row in $alumnos) { 
+    if ($row -match '\S') { 
+        $data = $row.Split('|')
+        $resp_id = if($data[4]) { "'$($data[4])'" } else { "NULL" }
+        $sql = "INSERT INTO cache_alumnos (id, erp_alumno_id, nombre, apellido, grado, erp_responsable_id, ultima_sync) VALUES (gen_random_uuid(), '$($data[0])', '$($data[1])', '$($data[2])', '$($data[3])', $resp_id, NOW()) ON CONFLICT (erp_alumno_id) DO UPDATE SET nombre=EXCLUDED.nombre, apellido=EXCLUDED.apellido, grado=EXCLUDED.grado, erp_responsable_id=EXCLUDED.erp_responsable_id, ultima_sync=NOW();"
+        docker exec gestor_ws_postgres psql -U gestor_user -d gestor_ws -c $sql
+    }
+}
+
+# Cuotas
+$cuotas = docker exec erp_mock_postgres psql -U erp_user -d erp_mock -t -A -c "SELECT id, alumno_id, monto, fecha_vencimiento, estado, fecha_pago, link_pago FROM erp_cuotas;"
+foreach ($row in $cuotas) { 
+    if ($row -match '\S') { 
+        $data = $row.Split('|')
+        $fecha_pago = if($data[5]) { "'$($data[5])'" } else { "NULL" }
+        $link_pago = if($data[6]) { "'$($data[6])'" } else { "NULL" }
+        $sql = "INSERT INTO cache_cuotas (id, erp_cuota_id, erp_alumno_id, monto, fecha_vencimiento, estado, fecha_pago, link_pago, ultima_sync) VALUES (gen_random_uuid(), '$($data[0])', '$($data[1])', $($data[2]), '$($data[3])', '$($data[4])', $fecha_pago, $link_pago, NOW()) ON CONFLICT (erp_cuota_id) DO UPDATE SET monto=EXCLUDED.monto, estado=EXCLUDED.estado, fecha_pago=EXCLUDED.fecha_pago, ultima_sync=NOW();"
+        docker exec gestor_ws_postgres psql -U gestor_user -d gestor_ws -q -c $sql
+    }
+}
+
+================================================================================
+                  PASO 4: CONFIGURAR API KEY PARA IA (LLM)
+================================================================================
+
+# Verificar que Gestor WS tenga la API Key configurada
+docker exec gestor_ws_api printenv | Select-String -Pattern "GOOGLE_API_KEY|OPENAI_API_KEY|LLM_PROVIDER"
+
+# Pasar las variables al Knowledge Graph (PowerShell)
+$env:GOOGLE_API_KEY = "TU_API_KEY_DE_GOOGLE"
+$env:LLM_PROVIDER = "google"
+$env:LLM_MODEL = "gemini-2.0-flash-exp"
+
+# Recrear contenedores con las variables
+cd C:\Users\u14527001\Downloads\GESTOR_WS\knowledge_graph
+docker-compose up -d --force-recreate api celery_worker
+
+================================================================================
+                        PASO 5: EJECUTAR ETL
+================================================================================
+
+# ETL completo (sincronización + enriquecimiento IA)
+docker exec knowledge_graph_api python scripts/run_etl.py
+
+# ETL solo sincronización (sin IA)
+docker exec knowledge_graph_api python scripts/run_etl.py --no-llm
+
+# ETL solo desde ERP
+docker exec knowledge_graph_api python scripts/run_etl.py --only-erp --no-llm
+
+# ETL solo enriquecimiento IA
+docker exec knowledge_graph_api python scripts/run_etl.py --only-llm
+
+SALIDA ESPERADA:
+============================================================
+ETL - KNOWLEDGE GRAPH
+============================================================
+FASE 1: SINCRONIZACIÓN DESDE ERP
+   ✅ 5 responsables sincronizados
+   ✅ 6 estudiantes, 6 grados
+   ✅ 60 cuotas sincronizadas
+
+FASE 2: SINCRONIZACIÓN DESDE GESTOR WS
+   ✅ Interacciones sincronizadas
+   ✅ Notificaciones ignoradas detectadas
+
+FASE 3: ENRIQUECIMIENTO CON LLM
+   ✅ Perfiles clasificados
+   ✅ Clusters generados
+   ✅ Insights predictivos generados
+
+✅ ETL COMPLETADO
+
+================================================================================
+                    VERIFICACIÓN: COMANDOS DE PRUEBA
+================================================================================
+
+# 1. HEALTH CHECK - Verificar que la API esté funcionando
+Invoke-RestMethod -Uri "http://localhost:8002/health"
+
+RESPUESTA ESPERADA:
+{
+    "status": "healthy",
+    "service": "knowledge_graph",
+    "components": { "neo4j": "connected" },
+    "llm": { "provider": "google", "model": "gemini-2.0-flash-exp" }
+}
+
+--------------------------------------------------------------------------------
+
+# 2. ESTADO DEL GRAFO - Ver nodos y relaciones
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/status/grafo"
+
+RESPUESTA ESPERADA:
+{
+    "status": "connected",
+    "nodos": {
+        "Cuota": 60,
+        "Estudiante": 6,
+        "Grado": 6,
+        "Responsable": 5
+    },
+    "relaciones": {
+        "DEBE": 60,
+        "CURSA": 6,
+        "RESPONSABLE_DE": 6
+    },
+    "total_nodos": 77,
+    "total_relaciones": 72
+}
+
+--------------------------------------------------------------------------------
+
+# 3. DEUDA POR GRADO - Ver distribución de deuda
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/deuda-por-grado"
+
+RESPUESTA ESPERADA:
+{
+    "deuda_por_grado": [
+        { "grado": "3ro A", "deuda_total": 500000, "cuotas_vencidas": 2 },
+        { "grado": "4to A", "deuda_total": 400000, "cuotas_vencidas": 0 },
+        ...
+    ]
+}
+
+--------------------------------------------------------------------------------
+
+# 4. PROYECCIÓN DE CAJA - Flujo de caja esperado
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/proyeccion-caja?dias=90"
+
+RESPUESTA ESPERADA:
+{
+    "proyeccion": {
+        "monto_total_pendiente": 400000,
+        "monto_esperado_optimista": 240000,
+        "monto_esperado_realista": 160000,
+        "monto_esperado_pesimista": 80000
+    }
+}
+
+--------------------------------------------------------------------------------
+
+# 5. INSIGHTS PREDICTIVOS (IA) - Análisis generado por IA
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/insights-predictivos"
+
+RESPUESTA ESPERADA:
+{
+    "tendencias": ["Alta concentración del monto vencido...", ...],
+    "riesgos": ["Incremento significativo del monto vencido...", ...],
+    "oportunidades": ["Implementación de sistema de alerta...", ...],
+    "acciones": ["Contactar INMEDIATAMENTE a responsables...", ...],
+    "generado_por": "google/gemini-2.0-flash-exp"
+}
+
+--------------------------------------------------------------------------------
+
+# 6. RIESGO DE DESERCIÓN - Alumnos en riesgo
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/riesgo-desercion?umbral=20"
+
+--------------------------------------------------------------------------------
+
+# 7. VENCIMIENTOS PRÓXIMOS
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/vencimientos-proximos?dias=30"
+
+--------------------------------------------------------------------------------
+
+# 8. CLUSTERS DE COMPORTAMIENTO (IA)
+Invoke-RestMethod -Uri "http://localhost:8002/api/v1/reportes/clusters"
+
+================================================================================
+                              URLs IMPORTANTES
+================================================================================
+
+API Knowledge Graph:        http://localhost:8002
+Documentación Swagger:      http://localhost:8002/docs
+Neo4j Browser:              http://localhost:7474
+                            Usuario: neo4j
+                            Contraseña: password123
+
+================================================================================
+                         ENDPOINTS DISPONIBLES
+================================================================================
+
+REPORTES:
+GET  /api/v1/reportes/riesgo-desercion          Alumnos en riesgo
+GET  /api/v1/reportes/riesgo-desercion/alto     Solo riesgo alto
+GET  /api/v1/reportes/proyeccion-caja           Proyección financiera
+GET  /api/v1/reportes/vencimientos-proximos     Cuotas próximas a vencer
+GET  /api/v1/reportes/deuda-por-grado           Deuda agrupada por grado
+GET  /api/v1/reportes/clusters                  Clusters de comportamiento (IA)
+GET  /api/v1/reportes/insights-predictivos      Insights generados por IA
+GET  /api/v1/reportes/resumen-ejecutivo         Resumen para dirección (IA)
+GET  /api/v1/reportes/patrones                  Patrones detectados
+
+ETL MANUAL:
+POST /api/v1/reportes/etl/sync-erp              Sincronizar desde ERP
+POST /api/v1/reportes/etl/sync-gestor           Sincronizar desde Gestor WS
+POST /api/v1/reportes/etl/enrich-llm            Enriquecer con IA
+POST /api/v1/reportes/etl/full                  ETL completo
+
+STATUS:
+GET  /api/v1/reportes/status/grafo              Estado del Knowledge Graph
+GET  /api/v1/reportes/status/llm                Estado del LLM configurado
+GET  /health                                    Health check del servicio
+
+================================================================================
+                          TAREAS PROGRAMADAS (CELERY)
+================================================================================
+
+Las siguientes tareas se ejecutan automáticamente:
+
+- ETL Nocturno (completo):     2:00 AM diario
+- Sync incremental ERP:        Cada 6 horas
+- Cálculo scores riesgo:       Cada 6 horas
+- Resumen semanal (IA):        Lunes 8:00 AM
+- Actualizar clusters:         Domingo 3:00 AM
+
+# Ver logs de Celery
+docker-compose logs -f celery_worker
+docker-compose logs -f celery_beat
+
+================================================================================
+                           SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: "GOOGLE_API_KEY no está configurada"
+SOLUCIÓN: Configurar la variable de entorno antes de levantar los contenedores
+          $env:GOOGLE_API_KEY = "tu_api_key"
+          docker-compose up -d --force-recreate
+
+PROBLEMA: API no responde en puerto 8002
+SOLUCIÓN: Verificar logs del contenedor
+          docker-compose logs api
+
+PROBLEMA: Neo4j no conecta
+SOLUCIÓN: Verificar que el contenedor esté healthy
+          docker-compose ps
+          docker-compose logs neo4j
+
+PROBLEMA: ETL no sincroniza datos
+SOLUCIÓN: Verificar que la cache de Gestor WS tenga datos
+          docker exec gestor_ws_postgres psql -U gestor_user -d gestor_ws \
+            -c "SELECT COUNT(*) FROM cache_responsables;"
+
+================================================================================
+                         DETENER SERVICIOS
+================================================================================
+
+# Detener todos los servicios
+cd C:\Users\u14527001\Downloads\GESTOR_WS\knowledge_graph
+docker-compose down
+
+# Detener y eliminar volúmenes (BORRA TODOS LOS DATOS)
+docker-compose down -v
+
+================================================================================
+                          RESUMEN DE VERIFICACIÓN
+================================================================================
+
+✅ El módulo está funcionando correctamente si:
+
+1. docker-compose ps muestra todos los servicios "Up"
+2. http://localhost:8002/health responde "healthy"
+3. /api/v1/reportes/status/grafo muestra nodos > 0
+4. /api/v1/reportes/deuda-por-grado retorna datos
+5. /api/v1/reportes/insights-predictivos tiene tendencias/acciones (requiere IA)
+
+================================================================================
+
