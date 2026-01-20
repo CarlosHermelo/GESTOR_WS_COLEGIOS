@@ -19,6 +19,43 @@ services:
     networks:
       - gestor_network
 
+  # MCP Tools Server - Herramientas centralizadas
+  mcp_tools:
+    build: ../mcp_tools
+    container_name: mcp_tools_server
+    ports:
+      - "8003:8003"
+    environment:
+      # Modo de operación
+      MOCK_MODE: ${MOCK_MODE:-true}
+      
+      # Conexiones a otros servicios (dentro de Docker network)
+      ERP_URL: http://host.docker.internal:8001
+      KNOWLEDGE_GRAPH_URL: http://host.docker.internal:8002
+      GESTOR_WS_URL: http://api:8000
+      
+      # LLM
+      LLM_PROVIDER: ${LLM_PROVIDER:-google}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash-exp}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ../mcp_tools/app:/app/app
+      - ../mcp_tools/tests:/app/tests
+      - mcp_data:/app/data
+    networks:
+      - gestor_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # API FastAPI - Gestor WS
   api:
     build: .
@@ -29,13 +66,17 @@ services:
       # Database
       DATABASE_URL: postgresql+asyncpg://gestor_user:gestor_pass@postgres:5432/gestor_ws
       
+      # MCP Tools Server
+      MCP_TOOLS_URL: http://mcp_tools:8003
+      MOCK_MODE: ${MOCK_MODE:-true}
+      
       # ERP Mock (desde Docker se usa host.docker.internal)
       ERP_TYPE: mock
       MOCK_ERP_URL: http://host.docker.internal:8001
       
       # LLM Configuration (se leen desde .env)
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      LLM_MODEL: ${LLM_MODEL:-gpt-5-nano}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4000}
       
@@ -50,6 +91,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mcp_tools:
+        condition: service_healthy
     volumes:
       - ./app:/app/app
       - ./scripts:/app/scripts
@@ -63,8 +106,9 @@ services:
 volumes:
   gestor_data:
     driver: local
+  mcp_data:
+    driver: local
 
 networks:
   gestor_network:
     driver: bridge
-

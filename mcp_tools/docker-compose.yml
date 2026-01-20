@@ -1,0 +1,47 @@
+services:
+  mcp_tools:
+    build: .
+    container_name: mcp_tools_server
+    ports:
+      - "8003:8003"
+    environment:
+      # Modo de operación
+      MOCK_MODE: ${MOCK_MODE:-true}
+      
+      # Conexiones a otros servicios
+      ERP_URL: ${ERP_URL:-http://host.docker.internal:8001}
+      KNOWLEDGE_GRAPH_URL: ${KNOWLEDGE_GRAPH_URL:-http://host.docker.internal:8002}
+      GESTOR_WS_URL: ${GESTOR_WS_URL:-http://host.docker.internal:8000}
+      
+      # Database (para tickets en modo real)
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./data/mcp_tools.db}
+      
+      # LLM (para tools que necesiten)
+      LLM_PROVIDER: ${LLM_PROVIDER:-google}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash-exp}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - mcp_data:/app/data
+    networks:
+      - gestor_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mcp_data:
+    driver: local
+
+networks:
+  gestor_network:
+    external: true

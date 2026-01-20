@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = "dummy_id"
     WHATSAPP_VERIFY_TOKEN: str = "mi_token_secreto"
     
+    # ============== MCP TOOLS ==============
+    MCP_TOOLS_URL: str = "http://localhost:8003"
+    
     # ============== API ==============
     API_PORT: int = 8000
     LOG_LEVEL: str = "INFO"
