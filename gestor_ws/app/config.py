@@ -9,6 +9,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Configuración de la aplicación cargada desde variables de entorno."""
     
+    # ============== MODO DE OPERACIÓN ==============
+    MOCK_MODE: bool = True  # True = todo simulado, False = servicios reales
+    
     # ============== DATABASE ==============
     DATABASE_URL: str = "postgresql+asyncpg://gestor_user:gestor_pass@localhost:5432/gestor_ws"
     
@@ -39,8 +42,11 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # Ignorar variables extra del .env
 
 
 # Instancia global de configuración
 settings = Settings()
+
+
 
