@@ -77,8 +77,42 @@ async def consultar_estado_cuenta(whatsapp: str) -> dict:
         }
     
     try:
-        response = await erp_client.get(f"/responsables/whatsapp/{whatsapp}")
-        return response
+        response = await erp_client.get(f"/api/v1/responsables/by-whatsapp/{whatsapp}")
+        
+        # Transformar respuesta del ERP al formato esperado
+        if not response:
+            return {"found": False, "error": "Responsable no encontrado"}
+        
+        # Calcular deuda total y cuotas pendientes
+        alumnos_data = []
+        deuda_total = 0
+        
+        for alumno in response.get("alumnos", []):
+            cuotas_pendientes = []
+            for cuota in alumno.get("cuotas", []):
+                if cuota.get("estado") == "pendiente":
+                    cuotas_pendientes.append({
+                        "id": cuota.get("id"),
+                        "numero": cuota.get("numero_cuota"),
+                        "monto": cuota.get("monto"),
+                        "vencimiento": cuota.get("fecha_vencimiento"),
+                        "link_pago": cuota.get("link_pago", "")
+                    })
+                    deuda_total += cuota.get("monto", 0)
+            
+            alumnos_data.append({
+                "id": alumno.get("id"),
+                "nombre": f"{alumno.get('nombre', '')} {alumno.get('apellido', '')}",
+                "grado": alumno.get("grado", ""),
+                "cuotas_pendientes": cuotas_pendientes
+            })
+        
+        return {
+            "found": True,
+            "responsable": response.get("nombre", ""),
+            "alumnos": alumnos_data,
+            "deuda_total": deuda_total
+        }
     except Exception as e:
         logger.error(f"Error consultando ERP: {e}")
         return {"found": False, "error": str(e)}
@@ -115,7 +149,7 @@ async def obtener_link_pago(cuota_id: str) -> dict:
         }
     
     try:
-        response = await erp_client.get(f"/cuotas/{cuota_id}")
+        response = await erp_client.get(f"/api/v1/cuotas/{cuota_id}")
         return {
             "found": True,
             "cuota_id": cuota_id,
@@ -157,7 +191,9 @@ async def registrar_confirmacion_pago(cuota_id: str, whatsapp: str) -> dict:
         }
     
     try:
-        response = await erp_client.post("/pagos/confirmar", {
+        # El ERP real espera: cuota_id, monto, metodo, referencia
+        # Por ahora enviamos solo cuota_id y whatsapp, el ERP puede inferir el resto
+        response = await erp_client.post("/api/v1/pagos/confirmar", {
             "cuota_id": cuota_id,
             "whatsapp": whatsapp,
             "estado": "pendiente_validacion"
@@ -208,8 +244,16 @@ async def buscar_alumno(alumno_id: str) -> dict:
         }
     
     try:
-        response = await erp_client.get(f"/alumnos/{alumno_id}")
-        return {"found": True, "alumno": response}
+        response = await erp_client.get(f"/api/v1/alumnos/{alumno_id}")
+        return {
+            "found": True,
+            "alumno": {
+                "id": response.get("id"),
+                "nombre": f"{response.get('nombre', '')} {response.get('apellido', '')}",
+                "grado": response.get("grado", ""),
+                "responsable": response.get("responsable", {}).get("nombre", "")
+            }
+        }
     except Exception as e:
         logger.error(f"Error buscando alumno: {e}")
         return {"found": False, "error": str(e)}

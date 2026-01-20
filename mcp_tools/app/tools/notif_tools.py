@@ -5,6 +5,7 @@ Categoría: notif
 import logging
 from datetime import datetime
 from typing import Optional
+import httpx
 
 from app.mcp.registry import tool
 from app.config import settings
@@ -56,6 +57,9 @@ async def enviar_whatsapp(whatsapp: str, mensaje: str, tipo: str = "general") ->
         }
     
     try:
+        # Nota: El gestor_ws no tiene endpoint REST para enviar WhatsApp directamente
+        # Se usa el servicio interno. Por ahora, intentamos el endpoint si existe
+        # o retornamos error indicando que se debe usar el servicio interno
         response = await gestor_client.post("/api/whatsapp/send", {
             "to": whatsapp,
             "message": mensaje,
@@ -66,6 +70,15 @@ async def enviar_whatsapp(whatsapp: str, mensaje: str, tipo: str = "general") ->
             "whatsapp": whatsapp,
             "message_id": response.get("message_id", "")
         }
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Endpoint /api/whatsapp/send no existe. Usar servicio interno de WhatsApp.")
+            return {
+                "sent": False,
+                "whatsapp": whatsapp,
+                "error": "Endpoint no disponible. Usar servicio interno de WhatsApp."
+            }
+        raise
     except Exception as e:
         logger.error(f"Error enviando WhatsApp: {e}")
         return {"sent": False, "whatsapp": whatsapp, "error": str(e)}
@@ -111,6 +124,12 @@ async def registrar_notificacion(
             "tipo": tipo
         })
         return {"registered": True, **response}
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Endpoint /api/notificaciones no existe. Registrar en BD directamente.")
+            # En modo real, deberías registrar en la BD directamente
+            return {"registered": False, "error": "Endpoint no disponible"}
+        raise
     except Exception as e:
         logger.error(f"Error registrando notificación: {e}")
         return {"registered": False, "error": str(e)}
@@ -150,6 +169,11 @@ async def obtener_cuotas_por_vencer(dias: int = 7) -> dict:
     try:
         response = await gestor_client.get(f"/api/cuotas/por-vencer?dias={dias}")
         return response
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Endpoint /api/cuotas/por-vencer no existe.")
+            return {"cuotas": [], "count": 0, "error": "Endpoint no disponible"}
+        raise
     except Exception as e:
         logger.error(f"Error obteniendo cuotas: {e}")
         return {"cuotas": [], "count": 0, "error": str(e)}

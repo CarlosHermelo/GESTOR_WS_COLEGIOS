@@ -112,7 +112,7 @@ async def crear_ticket(
         }
     
     try:
-        response = await gestor_client.post("/api/tickets", {
+        response = await gestor_client.post("/api/admin/tickets", {
             "categoria": categoria,
             "motivo": motivo,
             "phone_number": phone_number,
@@ -123,10 +123,10 @@ async def crear_ticket(
         ticket_id = response.get("id", "")
         return {
             "created": True,
-            "ticket_id": ticket_id,
+            "ticket_id": str(ticket_id),  # Convertir UUID a string
             "categoria": categoria,
             "prioridad": prioridad,
-            "mensaje": _get_mensaje_ticket(categoria, ticket_id[:8] if ticket_id else "000")
+            "mensaje": _get_mensaje_ticket(categoria, str(ticket_id)[:8] if ticket_id else "000")
         }
     except Exception as e:
         logger.error(f"Error creando ticket: {e}")
@@ -174,7 +174,7 @@ async def buscar_ticket(ticket_id: str) -> dict:
         }
     
     try:
-        response = await gestor_client.get(f"/api/tickets/{ticket_id}")
+        response = await gestor_client.get(f"/api/admin/tickets/{ticket_id}")
         return {"found": True, "ticket": response}
     except Exception as e:
         logger.error(f"Error buscando ticket: {e}")
@@ -191,6 +191,7 @@ async def buscar_ticket(ticket_id: str) -> dict:
 async def clasificar_prioridad(motivo: str) -> dict:
     """
     Clasifica la prioridad de un caso basándose en el motivo.
+    Esta función siempre usa lógica local (no requiere API).
     
     Args:
         motivo: Descripción del caso a clasificar
@@ -198,25 +199,17 @@ async def clasificar_prioridad(motivo: str) -> dict:
     Returns:
         dict con prioridad (baja, media, alta) y razon
     """
-    if settings.MOCK_MODE:
-        logger.info(f"[MOCK] clasificar_prioridad")
-        
-        motivo_lower = motivo.lower()
-        
-        # Reglas simples de clasificación
-        if any(kw in motivo_lower for kw in ["urgente", "legal", "grave", "demanda"]):
-            return {"prioridad": "alta", "razon": "Caso urgente o con implicaciones legales"}
-        elif any(kw in motivo_lower for kw in ["reclamo", "error", "queja", "problema"]):
-            return {"prioridad": "media", "razon": "Reclamo o problema que requiere atención"}
-        else:
-            return {"prioridad": "baja", "razon": "Consulta general"}
+    logger.info(f"Clasificando prioridad para: {motivo[:50]}...")
     
-    try:
-        response = await gestor_client.post("/api/clasificar", {"motivo": motivo})
-        return response
-    except Exception as e:
-        logger.error(f"Error clasificando: {e}")
-        return {"prioridad": "media", "razon": "Clasificación por defecto"}
+    motivo_lower = motivo.lower()
+    
+    # Reglas de clasificación (siempre local, no requiere API)
+    if any(kw in motivo_lower for kw in ["urgente", "legal", "grave", "demanda", "judicial"]):
+        return {"prioridad": "alta", "razon": "Caso urgente o con implicaciones legales"}
+    elif any(kw in motivo_lower for kw in ["reclamo", "error", "queja", "problema", "mal"]):
+        return {"prioridad": "media", "razon": "Reclamo o problema que requiere atención"}
+    else:
+        return {"prioridad": "baja", "razon": "Consulta general"}
 
 
 @tool(
@@ -256,8 +249,14 @@ async def listar_tickets_pendientes(phone_number: str = None) -> dict:
         if phone_number:
             params["phone_number"] = phone_number
         
-        response = await gestor_client.get("/api/tickets", params=params)
-        return response
+        response = await gestor_client.get("/api/admin/tickets", params=params)
+        
+        # Transformar respuesta si es necesario
+        tickets = response.get("tickets", [])
+        return {
+            "tickets": tickets,
+            "count": len(tickets)
+        }
     except Exception as e:
         logger.error(f"Error listando tickets: {e}")
         return {"tickets": [], "count": 0, "error": str(e)}
