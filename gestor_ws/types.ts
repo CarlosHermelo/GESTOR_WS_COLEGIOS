@@ -478,3 +478,5 @@ export const TICKET_PRIORIDADES: TicketPrioridad[] = ["baja", "media", "alta"];
 export const CUOTA_ESTADOS = ["pendiente", "pagada", "vencida"] as const;
 export type CuotaEstado = typeof CUOTA_ESTADOS[number];
 
+
+

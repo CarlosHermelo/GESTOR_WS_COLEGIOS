@@ -215,3 +215,5 @@ class TestAdminEndpoints:
             # El endpoint existe
             assert response.status_code in [200, 500]
 
+
+

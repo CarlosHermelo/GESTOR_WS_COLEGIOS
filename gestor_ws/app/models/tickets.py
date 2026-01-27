@@ -162,3 +162,5 @@ class NotificacionEnviada(Base):
             tipo="confirmacion_pago"
         )
 
+
+

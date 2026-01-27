@@ -225,3 +225,5 @@ Ver archivo `types.example.ts` para ejemplos completos de:
 - Manejo de errores
 - Validación de tipos
 
+
+

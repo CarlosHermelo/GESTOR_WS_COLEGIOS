@@ -38,3 +38,5 @@ class LLMInterface(ABC):
         """Nombre del proveedor para logging."""
         pass
 
+
+

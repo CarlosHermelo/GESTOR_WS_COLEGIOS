@@ -132,3 +132,5 @@ class CacheCuota(Base):
             return False
         return self.fecha_vencimiento < date.today() and self.estado != "pagada"
 
+
+

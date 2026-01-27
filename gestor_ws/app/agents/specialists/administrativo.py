@@ -10,7 +10,7 @@ from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 
-from app.llm.factory import get_llm
+from app.llm.factory import get_llm, get_tracked_llm
 from app.agents.states import (
     SpecialistState,
     SpecialistReport,
@@ -47,7 +47,8 @@ class AdministrativoSubgraph:
     
     def __init__(self):
         """Inicializa el especialista administrativo."""
-        self.llm = get_llm()
+        # Usar TrackedLLM para tracking de tokens
+        self.llm = get_tracked_llm("administrativo_planificar", "specialist")
         self.graph = self._build_graph()
         
         logger.info("AdministrativoSubgraph inicializado")

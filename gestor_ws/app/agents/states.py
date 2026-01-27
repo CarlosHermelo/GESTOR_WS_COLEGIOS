@@ -148,6 +148,47 @@ class SpecialistState(TypedDict):
 
 
 # ============================================================
+# ESTADO DEL CODE PLANNER - Nueva arquitectura
+# ============================================================
+
+class CodePlannerState(TypedDict):
+    """
+    Estado para el agente Code Planner.
+    El LLM genera código Python que invoca herramientas MCP.
+    """
+    # Entrada
+    phone_number: str
+    mensaje_original: str
+    user_context: Optional[dict]
+    
+    # Código generado por el Planner
+    generated_code: str
+    code_reasoning: str
+    
+    # Ejecución
+    execution_result: Optional[Any]
+    execution_error: Optional[str]
+    correction_count: int
+    max_corrections: int
+    
+    # Iteraciones del Planner (para evitar loops infinitos)
+    planner_iterations: int
+    
+    # Reflexión
+    reflection_valid: bool
+    reflection_reason: str
+    
+    # Resultado
+    final_response: Optional[str]
+    
+    # Memoria
+    memory_context: dict
+    
+    # Control
+    error: Optional[str]
+
+
+# ============================================================
 # FUNCIONES HELPER
 # ============================================================
 
@@ -166,6 +207,31 @@ def create_empty_agent_state(
         needs_replan=False,
         replan_count=0,
         max_replans=3,
+        final_response=None,
+        memory_context={},
+        error=None
+    )
+
+
+def create_empty_code_planner_state(
+    phone_number: str,
+    mensaje: str,
+    user_context: Optional[dict] = None
+) -> CodePlannerState:
+    """Crea un estado inicial para el Code Planner."""
+    return CodePlannerState(
+        phone_number=phone_number,
+        mensaje_original=mensaje,
+        user_context=user_context,
+        generated_code="",
+        code_reasoning="",
+        execution_result=None,
+        execution_error=None,
+        correction_count=0,
+        max_corrections=3,
+        planner_iterations=0,
+        reflection_valid=False,
+        reflection_reason="",
         final_response=None,
         memory_context={},
         error=None
@@ -209,3 +275,4 @@ def create_specialist_report(
         error=error,
         requires_replan=requires_replan
     )
+

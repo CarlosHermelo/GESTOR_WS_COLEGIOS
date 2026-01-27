@@ -204,3 +204,5 @@ async def close_whatsapp_service() -> None:
         await _whatsapp_service.close()
         _whatsapp_service = None
 
+
+

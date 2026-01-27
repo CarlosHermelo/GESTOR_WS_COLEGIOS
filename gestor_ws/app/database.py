@@ -174,3 +174,5 @@ CREATE TABLE IF NOT EXISTS sincronizaciones_log (
 );
 """
 
+
+

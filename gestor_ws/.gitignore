@@ -20,6 +20,7 @@ htmlcov/
 # Docker
 docker-compose.override.yml
 *.log
+logs/
 
 # IDEs
 .vscode/

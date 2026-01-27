@@ -135,3 +135,5 @@ class TestAsistenteVirtualIntegration:
                     assert respuesta == "Tu saldo pendiente es de $45,000"
                     mock_agent_executor.ainvoke.assert_called_once()
 
+
+

@@ -11,6 +11,10 @@ Flujo:
 3. Especialistas ejecutan y retornan reportes
 4. Evaluador valida → replan si es necesario
 5. Sintetizador combina reportes en respuesta final
+
+MODO CODE PLANNER (nuevo):
+- El LLM genera código Python que invoca herramientas MCP
+- Fallback a especialistas si falla
 """
 import json
 import logging
@@ -21,7 +25,8 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.messages import HumanMessage
 
-from app.llm.factory import get_llm
+from app.llm.factory import get_llm, get_tracked_llm
+from app.services.token_tracker import token_tracker
 from app.adapters.erp_interface import ERPClientInterface
 from app.adapters.mock_erp_adapter import get_erp_client
 from app.agents.states import (
@@ -36,6 +41,9 @@ from app.agents.states import (
 from app.agents.specialists.financiero import FinancieroSubgraph
 from app.agents.specialists.administrativo import AdministrativoSubgraph
 from app.agents.specialists.institucional import InstitucionalSubgraph
+
+# Code Planner (nueva arquitectura)
+from app.agents.code_planner import CodePlannerAgent, get_code_planner_agent
 
 
 logger = logging.getLogger(__name__)
@@ -69,7 +77,8 @@ class AgenteAutonomo:
     def __init__(
         self,
         erp_client: Optional[ERPClientInterface] = None,
-        checkpoint_path: Optional[str] = None
+        checkpoint_path: Optional[str] = None,
+        use_code_planner: bool = True
     ):
         """
         Inicializa el agente autónomo.
@@ -77,12 +86,21 @@ class AgenteAutonomo:
         Args:
             erp_client: Cliente ERP opcional
             checkpoint_path: Ruta para la BD de checkpoints
+            use_code_planner: Si usar Code Planner (True) o especialistas (False)
         """
         self.erp = erp_client or get_erp_client()
-        self.llm = get_llm()
+        # Usar TrackedLLM para tracking de tokens
+        self.llm_manager = get_tracked_llm("manager", "planning")
+        self.llm_synthesizer = get_tracked_llm("synthesizer", "synthesis")
+        # Mantener llm para compatibilidad (usará manager)
+        self.llm = self.llm_manager
         self.checkpoint_path = checkpoint_path or CHECKPOINT_DB_PATH
         
-        # Inicializar especialistas
+        # Modo Code Planner (nueva arquitectura)
+        self.use_code_planner = use_code_planner
+        self._code_planner: Optional[CodePlannerAgent] = None
+        
+        # Inicializar especialistas (fallback)
         self.especialistas = {
             SpecialistType.FINANCIERO.value: FinancieroSubgraph(self.erp),
             SpecialistType.ADMINISTRATIVO.value: AdministrativoSubgraph(),
@@ -93,7 +111,7 @@ class AgenteAutonomo:
         self._graph = None
         self._checkpointer = None
         
-        logger.info("AgenteAutonomo inicializado")
+        logger.info(f"AgenteAutonomo inicializado (code_planner={use_code_planner})")
     
     async def _get_checkpointer(self) -> AsyncSqliteSaver:
         """Obtiene o crea el checkpointer."""
@@ -320,7 +338,8 @@ Si es saludo, steps debe ser lista vacía [].
 """
         
         try:
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            # Usar llm_manager para tracking
+            response = await self.llm_manager.ainvoke([HumanMessage(content=prompt)])
             content = self._clean_json_response(response.content)
             plan_data = json.loads(content)
             
@@ -499,7 +518,8 @@ Respuesta:
 """
         
         try:
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            # Usar llm_synthesizer para tracking
+            response = await self.llm_synthesizer.ainvoke([HumanMessage(content=prompt)])
             state["final_response"] = response.content.strip()
         except Exception as e:
             logger.error(f"Error sintetizando: {e}")
@@ -588,6 +608,12 @@ Respuesta:
         try:
             logger.info(f"Procesando mensaje de {whatsapp}: '{mensaje[:50]}...'")
             
+            # Iniciar sesión de tracking de tokens
+            query_id = token_tracker.start_session(
+                whatsapp=whatsapp,
+                mensaje=mensaje
+            )
+            
             # Estado inicial
             state = create_empty_agent_state(whatsapp, mensaje)
             
@@ -599,6 +625,14 @@ Respuesta:
             
             # Ejecutar grafo
             result = await graph.ainvoke(state, config=config)
+            
+            # Finalizar sesión de tracking
+            session = token_tracker.finalize_session()
+            if session:
+                logger.info(
+                    f"[TOKEN_TRACKER] Consulta finalizada: {query_id}, "
+                    f"Total tokens: {session.total_tokens:,}"
+                )
             
             respuesta = result.get("final_response")
             if respuesta:
@@ -613,6 +647,18 @@ Respuesta:
             
         except Exception as e:
             logger.error(f"Error en AgenteAutonomo: {e}", exc_info=True)
+            
+            # Finalizar sesión de tracking incluso en caso de error
+            try:
+                session = token_tracker.finalize_session()
+                if session:
+                    logger.info(
+                        f"[TOKEN_TRACKER] Sesión finalizada tras error: "
+                        f"Total tokens: {session.total_tokens:,}"
+                    )
+            except Exception as tracking_error:
+                logger.warning(f"Error finalizando tracking: {tracking_error}")
+            
             return (
                 "Disculpá, tuve un problema procesando tu solicitud. 😅\n\n"
                 "Por favor, intentá de nuevo."
@@ -623,6 +669,139 @@ Respuesta:
         whatsapp: str,
         mensaje: str
     ) -> str:
+        """
+        Procesa un mensaje sin checkpointing (para testing).
+        Usa Code Planner si está habilitado, con fallback a especialistas.
+        
+        Args:
+            whatsapp: Número de WhatsApp
+            mensaje: Texto del mensaje
+            
+        Returns:
+            str: Respuesta del agente
+        """
+        try:
+            logger.info(f"Procesando mensaje de {whatsapp}: '{mensaje[:50]}...'")
+            
+            # Iniciar sesión de tracking de tokens
+            query_id = token_tracker.start_session(
+                whatsapp=whatsapp,
+                mensaje=mensaje
+            )
+            
+            respuesta = None
+            
+            # ============================================================
+            # MODO CODE PLANNER (nuevo)
+            # ============================================================
+            if self.use_code_planner:
+                logger.info("Usando Code Planner...")
+                try:
+                    # Obtener o crear Code Planner
+                    if self._code_planner is None:
+                        self._code_planner = get_code_planner_agent()
+                    
+                    # Cargar contexto del usuario
+                    user_context = await self._cargar_contexto_usuario(whatsapp)
+                    
+                    # Procesar con Code Planner
+                    respuesta = await self._code_planner.process(
+                        phone_number=whatsapp,
+                        mensaje=mensaje,
+                        user_context=user_context
+                    )
+                    
+                    logger.info("Code Planner completado exitosamente")
+                    
+                except Exception as cp_error:
+                    logger.warning(f"Code Planner falló, usando fallback: {cp_error}")
+                    respuesta = None  # Fallback a especialistas
+            
+            # ============================================================
+            # FALLBACK: ESPECIALISTAS (modo original)
+            # ============================================================
+            if respuesta is None:
+                logger.info("Usando modo especialistas (fallback)...")
+                
+                # Estado inicial
+                state = create_empty_agent_state(whatsapp, mensaje)
+                
+                # Construir grafo sin checkpointer (para testing)
+                graph = self._build_graph()
+                
+                # Ejecutar grafo sin checkpointing
+                result = await graph.ainvoke(state)
+                
+                respuesta = result.get("final_response")
+            
+            # Finalizar sesión de tracking
+            session = token_tracker.finalize_session()
+            if session:
+                logger.info(
+                    f"[TOKEN_TRACKER] Consulta finalizada: {query_id}, "
+                    f"Total tokens: {session.total_tokens:,}"
+                )
+            
+            if respuesta:
+                logger.info(f"Respuesta generada: '{respuesta[:100]}...'")
+                return respuesta
+            
+            # Fallback final
+            return (
+                "Recibí tu mensaje y lo estoy procesando. 📝\n\n"
+                "Si necesitás atención especial, escribí 'hablar con alguien'."
+            )
+            
+        except Exception as e:
+            logger.error(f"Error en AgenteAutonomo: {e}", exc_info=True)
+            
+            # Finalizar sesión de tracking incluso en caso de error
+            try:
+                session = token_tracker.finalize_session()
+                if session:
+                    logger.info(
+                        f"[TOKEN_TRACKER] Sesión finalizada tras error: "
+                        f"Total tokens: {session.total_tokens:,}"
+                    )
+            except Exception as tracking_error:
+                logger.warning(f"Error finalizando tracking: {tracking_error}")
+            
+            return (
+                "Disculpá, tuve un problema procesando tu solicitud. 😅\n\n"
+                "Por favor, intentá de nuevo."
+            )
+    
+    async def _cargar_contexto_usuario(self, whatsapp: str) -> dict:
+        """
+        Carga el contexto del usuario desde el ERP.
+        Helper para el Code Planner.
+        """
+        from app.config import settings
+        
+        if settings.MOCK_MODE:
+            return {
+                "phone": whatsapp,
+                "responsable_id": "mock-resp-001",
+                "nombre": "María García",
+                "alumnos": [
+                    {"id": "mock-alumno-001", "nombre": "Juan", "apellido": "Pérez García", "grado": "3ro A"},
+                    {"id": "mock-alumno-002", "nombre": "Ana", "apellido": "Pérez García", "grado": "1ro B"}
+                ]
+            }
+        
+        try:
+            responsable = await self.erp.get_responsable_by_whatsapp(whatsapp)
+            if responsable:
+                return {
+                    "phone": whatsapp,
+                    "responsable_id": responsable.get("id"),
+                    "nombre": responsable.get("nombre", ""),
+                    "alumnos": responsable.get("alumnos", [])
+                }
+        except Exception as e:
+            logger.warning(f"Error cargando contexto: {e}")
+        
+        return {"phone": whatsapp}
         """
         Procesa un mensaje sin usar checkpointing.
         Útil para testing o ejecuciones simples.

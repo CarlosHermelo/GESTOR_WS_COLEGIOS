@@ -411,3 +411,5 @@ Respuesta reformulada:
             logger.error(f"Error reformulando respuesta: {e}")
             return respuesta_admin  # Retorna original si falla
 
+
+

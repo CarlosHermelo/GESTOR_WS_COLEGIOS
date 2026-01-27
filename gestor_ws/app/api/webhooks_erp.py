@@ -173,3 +173,5 @@ async def webhook_responsable_actualizado(
         logger.error(f"Error procesando responsable actualizado: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+

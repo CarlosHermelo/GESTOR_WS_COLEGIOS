@@ -233,3 +233,5 @@ async def registrar_interaccion(
     except Exception as e:
         logger.error(f"Error registrando interacción: {e}")
 
+
+

@@ -109,3 +109,5 @@ class TestRouteTypeEnum:
         assert RouteType.AGENTE.value == "agente"
         assert RouteType.SALUDO.value == "saludo"
 
+
+

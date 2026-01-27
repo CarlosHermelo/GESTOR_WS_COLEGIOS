@@ -98,3 +98,5 @@ class TicketListResponse(BaseModel):
     en_proceso: int
     resueltos: int
 
+
+

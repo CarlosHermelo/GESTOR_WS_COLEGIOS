@@ -11,6 +11,7 @@ from langchain_core.language_models import BaseChatModel
 
 from app.config import settings
 from app.llm.base import LLMInterface
+from app.llm.tracked_llm import TrackedLLM
 
 
 logger = logging.getLogger(__name__)
@@ -175,4 +176,32 @@ def get_provider_info() -> dict:
         "max_tokens": settings.LLM_MAX_TOKENS,
         "available_providers": list(PROVIDERS.keys())
     }
+
+
+def get_tracked_llm(
+    node_name: str,
+    inference_type: str = "general"
+) -> TrackedLLM:
+    """
+    Factory que retorna un TrackedLLM wrapper para tracking de tokens.
+    
+    Args:
+        node_name: Nombre del nodo (ej: "manager", "financiero_planificar")
+        inference_type: Tipo de inferencia (ej: "planning", "synthesis", "specialist")
+    
+    Returns:
+        TrackedLLM: LLM envuelto con tracking de tokens
+    
+    Uso:
+        llm = get_tracked_llm("manager", "planning")
+        response = await llm.ainvoke("...")
+    """
+    base_llm = get_llm()
+    return TrackedLLM(
+        llm=base_llm,
+        node_name=node_name,
+        inference_type=inference_type
+    )
+
+
 

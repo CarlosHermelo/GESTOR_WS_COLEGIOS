@@ -214,3 +214,5 @@ class AsistenteVirtual:
             logger.error(f"Error obteniendo estado de cuenta: {e}")
             return "Hubo un error consultando tu estado de cuenta. Intentá de nuevo."
 
+
+

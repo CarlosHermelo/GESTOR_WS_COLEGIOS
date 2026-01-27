@@ -9,7 +9,7 @@ from typing import Optional
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 
-from app.llm.factory import get_llm
+from app.llm.factory import get_llm, get_tracked_llm
 from app.adapters.erp_interface import ERPClientInterface
 from app.adapters.mock_erp_adapter import get_erp_client
 from app.agents.states import (
@@ -44,7 +44,8 @@ class FinancieroSubgraph:
             erp_client: Cliente ERP. Si no se proporciona, usa el singleton.
         """
         self.erp = erp_client or get_erp_client()
-        self.llm = get_llm()
+        # Usar TrackedLLM para tracking de tokens
+        self.llm = get_tracked_llm("financiero_planificar", "specialist")
         self.graph = self._build_graph()
         
         logger.info("FinancieroSubgraph inicializado")

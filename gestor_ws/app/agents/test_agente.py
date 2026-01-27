@@ -11,11 +11,62 @@ import asyncio
 import logging
 from datetime import datetime
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configurar logging (igual que en main.py para tener archivos de log)
+def setup_logging():
+    """Configura logging igual que en main.py."""
+    import sys
+    from pathlib import Path
+    from logging.handlers import RotatingFileHandler
+    
+    log_format = (
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Crear directorio de logs si no existe
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Handlers: consola + archivo
+    handlers = [logging.StreamHandler(sys.stdout)]
+    
+    # File handler para logs generales
+    file_handler = RotatingFileHandler(
+        log_dir / "gestor_ws.log",
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,
+        encoding="utf-8"
+    )
+    file_handler.setFormatter(logging.Formatter(log_format))
+    handlers.append(file_handler)
+    
+    # File handler específico para token usage (JSON)
+    class TokenUsageFilter(logging.Filter):
+        def filter(self, record):
+            return "TOKEN_USAGE" in record.getMessage()
+    
+    token_handler = RotatingFileHandler(
+        log_dir / "token_usage.log",
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=10,
+        encoding="utf-8"
+    )
+    token_handler.setFormatter(logging.Formatter(log_format))
+    token_handler.addFilter(TokenUsageFilter())
+    handlers.append(token_handler)
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=handlers,
+        force=True  # Sobrescribir configuración previa
+    )
+    
+    # Reducir verbosidad de librerías externas
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -32,13 +83,23 @@ async def test_agente():
     agente = get_agente_autonomo()
     
     
-    
     # Casos de prueba
     test_cases = [
+        
         {
-            "categoria": "TRIPLE - Financiero + Institucional ",
-            "mensaje": "Fui al colegio a las 6 de la mañana y no habia nadie en el colegio para que me atiendan Quiero tener un estrevista con el director Hermelo ",
-            "esperado": "Estado de cuenta + horario de administración"
+            "categoria": "Consulta - Estado de cuenta",
+            "mensaje": "Puedo ir mañana al colegio ,donde es el lugar de atencion. Sale que tengo deuda pendiente y no tengo nada. Avisenem?",
+            "esperado": "Estado de cuenta con cuotas pendientes"
+        },
+         {
+            "categoria": "ADMINISTRATIVO - Plan de pagos",
+            "mensaje": "Quiero solicitar un plan de pagos porque no puedo pagar todo junto",
+            "esperado": "Creación de ticket de plan de pagos"
+        },
+        {
+            "categoria": "ADMINISTRATIVO - Reclamo",
+            "mensaje": "Tengo un reclamo, me cobraron de más en la cuota de febrero",
+            "esperado": "Creación de ticket de reclamo"
         },
     ]
     
@@ -196,6 +257,18 @@ async def test_interactivo():
 
 if __name__ == "__main__":
     import sys
+    import io
+    
+    # Configurar encoding UTF-8 para Windows
+    if sys.platform == "win32":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        # También intentar configurar la consola
+        try:
+            import os
+            os.system("chcp 65001 >nul 2>&1")
+        except:
+            pass
     
     if len(sys.argv) > 1 and sys.argv[1] == "--interactivo":
         asyncio.run(test_interactivo())
