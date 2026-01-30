@@ -1,13 +1,49 @@
 import re
 import sys
 import json
+import io
 from pathlib import Path
 from datetime import datetime
 
-# Configuración de archivos
-LOG_DIR = Path("logs")
+# Configurar UTF-8 en stdout para Windows
+if sys.platform == "win32":
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass
+
+
+# Configuración de archivos - Búsqueda inteligente de logs
+def find_log_files():
+    # Posibles ubicaciones de la carpeta 'logs'
+    paths_to_check = [
+        Path("logs"),                      # En el CWD actual
+        Path("gestor_ws/logs"),            # Desde la raíz si el proyecto está estructurado así
+        Path("gestor_ws/tests/logs"),      # Si corren desde la raíz pero el test creó su carpeta
+        Path("../logs"),                   # Desde tests/
+        Path("../../logs")                 # Desde algún otro subdirectorio
+    ]
+    
+    found_logs = []
+    for base in paths_to_check:
+        log_file = base / "gestor_ws.log"
+        if log_file.exists():
+            mtime = log_file.stat().st_mtime
+            found_logs.append((mtime, base))
+    
+    if found_logs:
+        # Ordenar por fecha de modificación (más reciente primero)
+        found_logs.sort(key=lambda x: x[0], reverse=True)
+        selected = found_logs[0][1]
+        return selected
+        
+    return Path("logs") # Fallback
+
+LOG_DIR = find_log_files()
 GESTOR_LOG = LOG_DIR / "gestor_ws.log"
 TOKEN_LOG = LOG_DIR / "token_usage.log"
+
 
 def parse_token_log():
     """Parsea el log de tokens y devuelve un dict {query_id: token_data}"""
@@ -157,6 +193,15 @@ def parseing_logs(num_consultas=1):
         elif "[EXECUTOR] ❌ Error" in line:
              reason = line.split("Error: ")[-1] if "Error: " in line else "Error desconocido"
              add_event("EXECUTOR", f"Error de ejecución: {reason}", status="ERROR", reason=reason)
+        
+        # Executor Summary (A veces viene en la línea siguiente)
+        elif "[EXECUTOR] Summary:" in line:
+             summary = line.split("Summary: ")[-1]
+             # Buscamos el último evento de EXECUTOR activo para pegarle el summary
+             for event in reversed(current_consulta["events"]):
+                 if event["type"] == "EXECUTOR":
+                     event["summary"] = summary
+                     break
 
         # Reflector Valid
         elif "[REFLECTOR] ✅ Válido" in line:
@@ -263,6 +308,8 @@ def print_report(consultas, show_all_code):
                 print(f"\n   2. ⚙️ EXECUTOR")
                 print(f"      {status} {event['desc']}")
                 if event.get("reason"): print(f"         {event['reason']}")
+                if event.get("summary"):
+                    print(f"         📝 Summary: {event['summary']}")
 
             elif event['type'] == 'REFLECTOR':
                 print(f"\n   3. 🔎 REFLECTOR")
@@ -275,41 +322,109 @@ def print_report(consultas, show_all_code):
                         reason = reason[:100] + "..."
                     print(f"         \"{reason}\"")
 
+            elif event['type'] == 'RESPONDER':
+                print(f"\n   4. 💬 RESPONDER")
+                print(f"      ✅ {event['desc']}")
+
             elif event['type'] == 'RETRY':
                 print(f"\n   🔄 REPLANIFICANDO (Auto-correction)...")
                 print("   " + "-"*40)
 
-            elif event['type'] == 'RESPONDER':
-                print(f"\n   4. 🗣️ RESPONDER")
-                print(f"      ✅ Respuesta generada")
-                
         print("="*80)
+
+def print_compact(consultas):
+    """Imprime un reporte súper compacto por cada consulta."""
+    for idx, c in enumerate(consultas, 1):
+        # Format date as YYYY/mm/dd to avoid confusion
+        date_str = "0000/00/00"
+        if c.get("start_dt"):
+            date_str = c["start_dt"].strftime("%Y/%m/%d")
+            
+        # 1. Primera línea: La pregunta con fecha
+        print(f"PREGUNTA [{date_str}]: {c['mensaje']}")
+        
+        # 2. Líneas de nodos
+        if c.get("token_details"):
+            last_time = c["start_dt"]
+            for inf in c["token_details"]:
+                inf_time_str = inf.get("timestamp")
+                inf_dt = datetime.fromisoformat(inf_time_str) if inf_time_str else None
+                
+                duration_str = "N/A"
+                if inf_dt and last_time:
+                    duration = (inf_dt - last_time).total_seconds()
+                    duration_str = f"{duration:.2f}s"
+                    last_time = inf_dt
+                
+                node_name = inf.get("node_name", "unknown")
+                tokens = inf.get("total_tokens", 0)
+                print(f"   Nodo: {node_name:<15} | Tiempo: {duration_str:>6} | Tokens: {tokens:>5}")
+        
+        # 3. Última línea: La respuesta en una sola línea
+        respuesta = c['respuesta'] or "(Sin respuesta)"
+        respuesta_flat = respuesta.replace("\n", " ").strip()
+        print(f"RESPUESTA: {respuesta_flat}")
+        print("-" * 50)
+
+def print_resume(consultas):
+    """Imprime un resumen de una línea por consulta."""
+    print("\n" + "="*100)
+    print(f"{'ID':<10} | {'HORA':<19} | {'TIEMPO':<8} | {'TOKENS':<8} | {'PREGUNTA'}")
+    print("-" * 100)
+    
+    for c in consultas:
+        duration = "N/A"
+        if c.get("end_dt") and c.get("start_dt"):
+            duration = f"{(c['end_dt'] - c['start_dt']).total_seconds():.2f}s"
+        
+        qid = (c["query_id"][:8] if c["query_id"] else "N/A").ljust(8)
+        ts = c["timestamp_str"]
+        tokens = str(c["tokens_total"]).ljust(6)
+        msg = c["mensaje"][:50] + "..." if len(c["mensaje"]) > 50 else c["mensaje"]
+        
+        print(f"{qid:<10} | {ts:<19} | {duration:<8} | {tokens:<8} | {msg}")
+    
+    print("="*100 + "\n")
 
     # Footer con ayuda
     print("\n💡 USO DEL SCRIPT:")
-    print("   python analizar_logs.py [N] [all]")
+    print("   python analizar_logs.py [N] [all|resume|compacto]")
     print("\n   Ejemplos:")
-    print("   • python analizar_logs.py          -> Ver resumen de la última consulta")
-    print("   • python analizar_logs.py 2        -> Ver resumen de las últimas 2 consultas")
-    print("   • python analizar_logs.py 1 all    -> Ver la última con TODO (código completo, preguntas completas)")
+    print("   • python analizar_logs.py          -> Ver reporte detallado de la última")
+    print("   • python analizar_logs.py resume   -> Ver resumen de una línea")
+    print("   • python analizar_logs.py compacto -> Ver reporte compacto (pregunta, nodos, respuesta)")
+    print("   • python analizar_logs.py 5 compacto -> Ver las últimas 5 en modo compacto")
     print("\n")
 
 if __name__ == "__main__":
     n = 1
     show_all = False
+    resume_mode = False
+    compact_mode = False
     
     # Parse args manual simple
     args = sys.argv[1:]
     if args:
-        if args[0].isdigit():
-            n = int(args[0])
-            if len(args) > 1 and args[1] == "all":
-                show_all = True
-        elif args[0] == "all":
+        if "resume" in args:
+            resume_mode = True
+        if "compacto" in args:
+            compact_mode = True
+        if "all" in args:
             show_all = True
+            
+        # Buscar el número N
+        for arg in args:
+            if arg.isdigit():
+                n = int(arg)
+                break
             
     consultas = parseing_logs(n)
     if consultas:
-        print_report(consultas, show_all)
+        if resume_mode:
+            print_resume(consultas)
+        elif compact_mode:
+            print_compact(consultas)
+        else:
+            print_report(consultas, show_all)
     else:
         print("No se encontraron consultas en el log.")

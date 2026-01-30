@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     WHATSAPP_TOKEN: str = "dummy_token"
     WHATSAPP_PHONE_NUMBER_ID: str = "dummy_id"
     WHATSAPP_VERIFY_TOKEN: str = "mi_token_secreto"
+    # Skill de comunicación a usar
+    COMMUNICATION_SKILL: str = "whatsapp-emulator"
     
     # ============== MCP TOOLS ==============
     MCP_TOOLS_URL: str = "http://localhost:8003"

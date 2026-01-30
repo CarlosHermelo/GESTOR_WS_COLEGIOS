@@ -1,0 +1,7 @@
+[
+   {
+            "categoria": "ADMINISTRATIVO - Plan de pagos",
+            "mensaje": "Quiero solicitar un plan de pagos porque no puedo pagar todo junto",
+            "esperado": "Creación de ticket de plan de pagos"
+        }
+]

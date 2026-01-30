@@ -245,3 +245,5 @@ class TestResumenFinanciero:
         assert result["tasa_cobranza"] == 70.0
         assert result["tasa_morosidad"] == 10.0
 
+
+

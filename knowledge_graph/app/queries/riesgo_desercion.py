@@ -149,3 +149,5 @@ async def obtener_estadisticas_riesgo(neo4j: Neo4jClient) -> dict[str, Any]:
         logger.error(f"Error obteniendo estadísticas de riesgo: {e}")
         return {}
 
+
+

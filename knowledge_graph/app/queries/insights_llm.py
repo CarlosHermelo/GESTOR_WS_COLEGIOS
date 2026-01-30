@@ -235,3 +235,5 @@ Responde SOLO con un JSON válido:
         logger.error(f"Error generando recomendaciones: {e}")
         return {"error": str(e)}
 
+
+

@@ -20,7 +20,7 @@ def get_notification_tools() -> list:
         list: Lista de herramientas
     """
     
-    @tool
+@tool
     async def enviar_notificacion_whatsapp(
         whatsapp: str,
         mensaje: str,
@@ -28,7 +28,6 @@ def get_notification_tools() -> list:
     ) -> str:
         """
         Envía una notificación por WhatsApp.
-        Por ahora es simulado (no conecta con API real).
         
         Args:
             whatsapp: Número de WhatsApp destino
@@ -36,10 +35,28 @@ def get_notification_tools() -> list:
             tipo: Tipo de notificación (general, recordatorio, confirmacion)
         """
         try:
-            # Simulación de envío
-            logger.info(f"[SIMULADO] Enviando a {whatsapp}: {mensaje[:50]}...")
+            from app.services.skill_manager import get_skill_manager
+            from app.config import settings
             
-            return f"✅ Notificación enviada a {whatsapp}"
+            skill_name = settings.COMMUNICATION_SKILL
+            logger.info(f"Delegando envío a skill {skill_name}: {whatsapp}")
+            
+            skill_manager = get_skill_manager()
+            result = await skill_manager.execute_skill(
+                skill_name=skill_name,
+                script_name="send_message.py",
+                args={
+                    "to": whatsapp,
+                    "message": mensaje
+                }
+            )
+            
+            if result.get("success"):
+                source = result.get("source", "skill")
+                return f"✅ Notificación enviada a {whatsapp} ({source})"
+            else:
+                error = result.get("error", "Error desconocido")
+                return f"Error enviando notificación: {error}"
             
         except Exception as e:
             logger.error(f"Error enviando notificación: {e}")

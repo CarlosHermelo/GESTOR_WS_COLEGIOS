@@ -3,7 +3,7 @@ Tests para los webhooks.
 """
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestCliente
 
 
 class TestWebhooksERP:

@@ -51,3 +51,5 @@ export function getEstadoBadgeVariant(estado: string): "default" | "secondary" |
   }
 }
 
+
+

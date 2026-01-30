@@ -4,9 +4,7 @@ Script para ejecutar el MCP Tools Server localmente.
 import os
 import sys
 
-# Configurar entorno para modo mock
-os.environ.setdefault("MOCK_MODE", "true")
-os.environ.setdefault("LOG_LEVEL", "INFO")
+from app.config import settings
 
 if __name__ == "__main__":
     import uvicorn
@@ -14,7 +12,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("MCP Tools Server - Modo Local")
     print("=" * 60)
-    print(f"MOCK_MODE: {os.environ.get('MOCK_MODE')}")
+    print(f"MOCK_MODE: {settings.MOCK_MODE}")
+    print(f"LOG_LEVEL: {settings.LOG_LEVEL}")
     print("=" * 60)
     
     uvicorn.run(

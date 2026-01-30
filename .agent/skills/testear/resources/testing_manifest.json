@@ -1,0 +1,41 @@
+{
+    "modulos": {
+        "multiagente_simple": {
+            "script": "C:/Users/u14527001/Downloads/GESTOR_WS/gestor_ws/tests/test_agente.py",
+            "precondiciones": [
+                "Servidor MCP corriendo",
+                "Sandbox de WhatsApp activo"
+            ]
+        },
+        "gestor_webhooks": {
+            "script": "pytest C:/Users/u14527001/Downloads/GESTOR_WS/gestor_ws/tests/test_webhooks.py",
+            "precondiciones": [
+                "Entorno virtual activo"
+            ]
+        },
+        "erp_api": {
+            "script": "pytest C:/Users/u14527001/Downloads/GESTOR_WS/erp_mock/tests/test_api.py",
+            "precondiciones": [
+                "ERP Mock server levantado"
+            ]
+        },
+        "mcp_tools": {
+            "script": "pytest C:/Users/u14527001/Downloads/GESTOR_WS/mcp_tools/tests/test_tools.py",
+            "precondiciones": [
+                "Servidor MCP configurado"
+            ]
+        },
+        "knowledge_graph": {
+            "script": "pytest C:/Users/u14527001/Downloads/GESTOR_WS/knowledge_graph/tests/",
+            "precondiciones": [
+                "Base de datos de grafos activa"
+            ]
+        },
+        "llm_connection": {
+            "script": "python C:/Users/u14527001/Downloads/GESTOR_WS/gestor_ws/test_llm_connection.py --all",
+            "precondiciones": [
+                "Archivo .env configurado con API Keys"
+            ]
+        }
+    }
+}

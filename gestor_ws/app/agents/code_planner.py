@@ -180,7 +180,7 @@ async def execute(mcp, context):
 
 Este es el intento {correction_count + 1} de {state.get('max_corrections', MAX_CORRECTIONS)}.
 """
-            logger.info(f"[PLANNER] Corrigiendo error previo: {error_previo[:200]}...")
+            logger.info(f"[PLANNER] Corrigiendo error previo: {error_previo}")
         
         # Contexto de reflexión previa (si el Reflector rechazó)
         reflection_context = ""
@@ -242,14 +242,13 @@ IMPORTANTE: Genera SOLO el código Python, sin explicaciones adicionales.
             code = self._clean_code_response(response.content)
             
             state["generated_code"] = code
-            state["code_reasoning"] = f"Código generado para: {mensaje[:50]}..."
+            state["code_reasoning"] = f"Código generado para: {mensaje}"
             
             # Logging detallado del código generado
             logger.info(f"[PLANNER] Código generado ({len(code)} chars)")
             if code:
                 # Log primeras líneas del código (en INFO para que se vea)
-                code_preview = code[:200] + "..." if len(code) > 200 else code
-                logger.info(f"[PLANNER] Preview del código:\n{code_preview}")
+                logger.info(f"[PLANNER] Código completo:\n{code}")
             else:
                 logger.warning("[PLANNER] ⚠️ Código vacío generado!")
                 # LOG CRÍTICO para diagnóstico: ¿Qué respondió el LLM realmente?
@@ -300,7 +299,7 @@ async def execute(mcp, context):
             
             logger.info(f"[EXECUTOR] ✅ Éxito. success={result.get('success', False)}")
             if result.get('summary'):
-                logger.info(f"[EXECUTOR] Summary: {result.get('summary', '')[:200]}")
+                logger.info(f"[EXECUTOR] Summary: {result.get('summary', '')}")
             
         except asyncio.TimeoutError:
             error_msg = f"Timeout: el código tardó más de {EXECUTION_TIMEOUT} segundos"
@@ -419,22 +418,26 @@ Responde SOLO con JSON:
         Genera respuesta natural para WhatsApp.
         SIEMPRE usa el LLM para generar respuestas completas y empáticas.
         """
+        logger.info("[RESPONDER] Iniciando generación de respuesta...")
         mensaje = state["mensaje_original"]
         result = state.get("execution_result", {})
         error = state.get("execution_error")
+        correction_count = state.get("correction_count", 0)
         
         # Si hubo error irrecuperable
-        if error and state.get("correction_count", 0) >= state.get("max_corrections", MAX_CORRECTIONS):
+        if error and correction_count >= state.get("max_corrections", MAX_CORRECTIONS):
+            logger.warning("[RESPONDER] Generando respuesta de error irrecuperable")
             state["final_response"] = (
                 "Disculpá, tuve un problema procesando tu consulta. 😅\n\n"
                 "¿Podés intentar de nuevo de otra forma?"
             )
             return state
         
-        # Si hay resultado exitoso, SIEMPRE usar LLM para respuesta completa
+        # Si hay resultado exitoso
         if result.get("success"):
             summary = result.get("summary", "")
             data = result.get("data", {})
+            logger.info(f"[RESPONDER] Generando respuesta sobre summary de {len(summary)} chars")
             
             # SIEMPRE generar respuesta con LLM para que responda a TODAS las partes de la consulta
             prompt = f"""Eres el asistente del Colegio. Genera una respuesta natural y COMPLETA para WhatsApp.
@@ -460,13 +463,21 @@ REGLAS IMPORTANTES:
 """
             
             try:
+                logger.info("[RESPONDER] Invocando LLM...")
                 response = await self.llm_responder.ainvoke([HumanMessage(content=prompt)])
-                state["final_response"] = response.content.strip()
+                content = response.content.strip()
+                logger.info(f"[RESPONDER] Respuesta generada ({len(content)} chars)")
+                
+                if not content:
+                    raise ValueError("Respuesta generada vacía")
+                    
+                state["final_response"] = content
             except Exception as e:
-                logger.error(f"Error en Responder: {e}")
+                logger.error(f"[RESPONDER] Error invocando LLM: {e}")
                 # Fallback al summary si falla el LLM
                 state["final_response"] = summary or "Consulta procesada. ¿Necesitás algo más?"
         else:
+            logger.warning("[RESPONDER] Generando respuesta de 'No encontrado'")
             state["final_response"] = (
                 "No pude encontrar la información solicitada. 😕\n\n"
                 "¿Podés darme más detalles?"

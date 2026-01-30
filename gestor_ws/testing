@@ -1,0 +1,11 @@
+#Ejecutar testing 
+-Levantar el Entorno
+--configurar el .env
+--verficar
+-verficar que el entorno este funcionando 
+-ejecutar el testing
+python 
+
+
+#Leer los testing
+-diseñar la estructura json

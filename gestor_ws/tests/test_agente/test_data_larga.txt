@@ -1,0 +1,52 @@
+[
+        {
+            "categoria": "SALUDO",
+            "mensaje": "Hola!",
+            "esperado": "Respuesta de bienvenida"
+        },
+        {
+            "categoria": "FINANCIERO - Estado de cuenta",
+            "mensaje": "Cuánto debo?",
+            "esperado": "Estado de cuenta con cuotas pendientes"
+        },
+        {
+            "categoria": "FINANCIERO - Link de pago",
+            "mensaje": "Necesito el link para pagar la cuota de marzo",
+            "esperado": "Link de pago o instrucciones"
+        },
+        {
+            "categoria": "ADMINISTRATIVO - Plan de pagos",
+            "mensaje": "Quiero solicitar un plan de pagos porque no puedo pagar todo junto",
+            "esperado": "Creación de ticket de plan de pagos"
+        },
+        {
+            "categoria": "ADMINISTRATIVO - Reclamo",
+            "mensaje": "Tengo un reclamo, me cobraron de más en la cuota de febrero",
+            "esperado": "Creación de ticket de reclamo"
+        },
+        {
+            "categoria": "INSTITUCIONAL - Horarios",
+            "mensaje": "¿A qué hora empiezan las clases de primaria?",
+            "esperado": "Información de horarios"
+        },
+        {
+            "categoria": "INSTITUCIONAL - Calendario",
+            "mensaje": "¿Cuándo empiezan las clases este año?",
+            "esperado": "Fecha de inicio de clases"
+        },
+        {
+            "categoria": "INSTITUCIONAL - Autoridades",
+            "mensaje": "¿Quién es el director del colegio?",
+            "esperado": "Nombre del director"
+        },
+        {
+            "categoria": "MIXTO - Financiero + Institucional",
+            "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración?",
+            "esperado": "Estado de cuenta + horario de administración"
+        },
+        {
+            "categoria": "TRIPLE - Financiero + Institucional ",
+            "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración? Y qué autoridades hay?",
+            "esperado": "Estado de cuenta + horario de administración"
+        },
+    ]

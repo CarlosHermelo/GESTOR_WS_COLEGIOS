@@ -226,3 +226,5 @@ class ETLFromGestor:
         logger.info(f"   ✅ {count} tickets sincronizados")
         return count
 
+
+

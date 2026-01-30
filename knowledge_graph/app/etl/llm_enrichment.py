@@ -370,3 +370,5 @@ Responde ÚNICAMENTE con este JSON válido:
             logger.error(f"Error generando insights: {e}")
             return {"error": str(e)}
 
+
+

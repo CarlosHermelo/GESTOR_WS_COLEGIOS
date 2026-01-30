@@ -1,0 +1,68 @@
+{
+  "tests": {
+    "agente_whatsapp": {
+      "modulo": "gestor_ws",
+      "tipo_testing": "multiagente",
+      "descripcion": "Verifica el flujo completo del agente de WhatsApp (Planner -> Executor -> Reflector -> Responder).",
+      "precondiciones": [
+        "Servidor MCP Tools activo en puerto 8003",
+        "Variables de entorno (.env) configuradas con LLM_MODEL y API Keys",
+        "Entorno virtual activo"
+      ],
+      "accion": "python gestor_ws/app/agents/test_agente.py --interactivo",
+      "postcondiciones": [
+        "Verificar que el mensaje final en logs sea coherente con la consulta",
+        "Revisar el archivo de logs generado para estadísticas de tokens"
+      ]
+    },
+    "webhooks_integration": {
+      "modulo": "gestor_ws",
+      "tipo_testing": "integracion",
+      "descripcion": "Prueba los endpoints de entrada de webhooks para recibir mensajes de WhatsApp.",
+      "precondiciones": [
+        "Entorno virtual activo",
+        "Servidor de desarrollo corriendo"
+      ],
+      "accion": "pytest gestor_ws/tests/test_webhooks.py",
+      "postcondiciones": [
+        "Asegurarse de que no queden registros basura en la DB de pruebas"
+      ]
+    },
+    "erp_api": {
+      "modulo": "erp_mock",
+      "tipo_testing": "api",
+      "descripcion": "Valida la disponibilidad y respuestas de los servicios simulados de ERP.",
+      "precondiciones": [
+        "Levantar el servicio erp_mock"
+      ],
+      "accion": "pytest erp_mock/tests/test_api.py",
+      "postcondiciones": [
+        "Verificar que las respuestas contengan los esquemas de datos esperados"
+      ]
+    },
+    "test_manual_sample": {
+      "modulo": "varios",
+      "tipo_testing": "manual",
+      "descripcion": "Un test de prueba para verificar el guardado",
+      "precondiciones": [
+        "Ninguna"
+      ],
+      "accion": "echo hola",
+      "postcondiciones": [
+        "Test exitoso"
+      ]
+    },
+    "mcp_tools_server": {
+      "modulo": "mcp_tools",
+      "tipo_testing": "mcp",
+      "descripcion": "Prueba la conexión y registro de herramientas en el servidor MCP.",
+      "precondiciones": [
+        "Servidor MCP configurado y en ejecución (puerto 8003)"
+      ],
+      "accion": "python mcp_tools/test_mcp_manual.py",
+      "postcondiciones": [
+        "Confirmar que todos los tests pasen (PASS)"
+      ]
+    }
+  }
+}

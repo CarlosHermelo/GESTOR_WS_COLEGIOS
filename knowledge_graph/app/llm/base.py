@@ -18,3 +18,5 @@ class LLMInterface(ABC):
         """Valida que las credenciales estén configuradas."""
         pass
 
+
+

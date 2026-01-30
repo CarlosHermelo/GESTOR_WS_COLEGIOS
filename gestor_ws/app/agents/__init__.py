@@ -1,37 +1,26 @@
 """
 Módulo de Agentes para procesamiento de mensajes.
 
-NUEVA ARQUITECTURA (agente_autonomo.py):
-- Agente Jerárquico de 2 capas con Planning JSON
-- Manager Jefe → Especialistas (Financiero, Administrativo, Institucional)
-- Dynamic Replanning y Checkpointing para HITL
-
-LEGACY (deprecado, importar directamente si se necesita):
-- router.py, asistente.py, coordinador.py
+ARQUITECTURA CODE PLANNER:
+- El LLM genera código Python que invoca herramientas MCP
+- Flujo: Planner → Executor → Reflector → Responder
 """
-# Nueva arquitectura jerárquica
 from app.agents.agente_autonomo import (
     AgenteAutonomo,
     get_agente_autonomo
 )
 from app.agents.states import (
-    AgentState,
-    MasterPlan,
-    SpecialistReport,
-    SpecialistType,
-    IntentType
+    CodePlannerState,
+    AgentState,  # Alias
+    create_empty_code_planner_state,
+    create_empty_agent_state  # Alias
 )
 
 __all__ = [
-    # Nueva arquitectura
     "AgenteAutonomo",
     "get_agente_autonomo",
+    "CodePlannerState",
     "AgentState",
-    "MasterPlan",
-    "SpecialistReport",
-    "SpecialistType",
-    "IntentType",
+    "create_empty_code_planner_state",
+    "create_empty_agent_state"
 ]
-
-
-
