@@ -1,7 +1,7 @@
 [
-   {
-            "categoria": "ADMINISTRATIVO - Plan de pagos",
-            "mensaje": "Quiero solicitar un plan de pagos porque no puedo pagar todo junto",
-            "esperado": "Creación de ticket de plan de pagos"
+     {
+            "categoria": "MIXTO - Financiero + Institucional",
+            "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración?",
+            "esperado": "Estado de cuenta + horario de administración"
         }
 ]

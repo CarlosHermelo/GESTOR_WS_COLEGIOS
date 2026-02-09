@@ -1,0 +1,10 @@
+date,page_path,department,office_location,active_users,page_views,session_duration,bounce_rate,clicks,comments,shares
+2026-02-01,/news/ceo-update-q1,Management,Headquarters,120,450,180,0.15,65,12,8
+2026-02-01,/hr/benefits-2026,Human Resources,Headquarters,85,210,320,0.10,25,5,15
+2026-02-01,/it/network-maintenance,IT,Remote,45,90,45,0.40,10,2,3
+2026-02-02,/news/ceo-update-q1,Sales,Regional Office,95,310,150,0.20,40,8,5
+2026-02-02,/events/summer-party,Social,Headquarters,200,600,60,0.35,110,45,30
+2026-02-02,/hr/policies/working-from-home,Human Resources,Remote,70,180,240,0.12,30,10,22
+2026-02-03,/news/new-product-launch,Product,Regional Office,110,350,210,0.18,55,15,12
+2026-02-03,/it/security-alert,IT,Headquarters,150,400,30,0.50,90,5,40
+2026-02-03,/hr/training/leadership,Management,Regional Office,30,75,600,0.05,10,3,2
