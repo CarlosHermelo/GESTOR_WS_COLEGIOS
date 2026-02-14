@@ -24,15 +24,35 @@ async def test_agente():
     """Ejecuta pruebas del agente autónomo."""
     from app.agents.agente_autonomo import get_agente_autonomo
     
-    print("\n" + "=" * 70)
-    print("🤖 AGENTE AUTÓNOMO JERÁRQUICO - Suite de Pruebas")
-    print("=" * 70)
-    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 70)
+    # 1. Analizar argumentos PRIMERO
+    limit = None
+    compact_mode = False
+    args = sys.argv[1:]
+    for arg in args:
+        if arg == "--resume":
+            compact_mode = True
+        elif arg.isdigit():
+            limit = int(arg)
+            
+    if compact_mode:
+        # Silenciar logs para que no ensucien el resumen
+        import logging
+        loggers_to_silence = ["app", "langchain", "langgraph", "google", "httpx", "openai"]
+        for name in loggers_to_silence:
+            logging.getLogger(name).setLevel(logging.ERROR)
+        logging.getLogger().setLevel(logging.ERROR)
+    
+    # 2. Cabeceras condicionales
+    if not compact_mode:
+        print("\n" + "=" * 70)
+        print("🤖 AGENTE AUTÓNOMO JERÁRQUICO - Suite de Pruebas")
+        print("=" * 70)
+        print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 70)
     
     agente = get_agente_autonomo()
     
-    # Cargar casos de prueba desde archivo externo
+    # 3. Cargar casos de prueba
     base_path = os.path.dirname(__file__)
     data_path = os.path.join(base_path, "test_agente", "test_data_larga.txt")
     
@@ -40,9 +60,9 @@ async def test_agente():
         if os.path.exists(data_path):
             with open(data_path, "r", encoding="utf-8") as f:
                 test_cases = json.load(f)
-            print(f"📂 Casos de prueba cargados REALMENTE desde: {data_path}")
+            if not compact_mode: print(f"📂 Casos de prueba cargados REALMENTE desde: {data_path}")
         else:
-            print(f"⚠️ No se encontró el archivo de datos en {data_path}, usando fallback.")
+            if not compact_mode: print(f"⚠️ No se encontró el archivo de datos en {data_path}, usando fallback.")
             test_cases = [
                 {
                     "categoria": "Fallback - Estado de cuenta",
@@ -55,47 +75,23 @@ async def test_agente():
         print(f"❌ Error cargando {data_path}: {e}")
         return False
     
-    # Número de WhatsApp por defecto (si no viene en el test case)
-    default_phone = "+5491112345001"
-    
-    # Limitador de casos
-    limit = None
-    compact_mode = False
-    
-    # Parse args manual
-    args = sys.argv[1:]
-    for arg in args:
-        if arg == "--resume":
-            compact_mode = True
-        elif arg.isdigit():
-            limit = int(arg)
-            
-    if compact_mode:
-        # Silenciar logs para que no ensucien el resumen
-        import logging
-        loggers_to_silence = [
-            "app", 
-            "langchain",
-            "langgraph",
-            "google",
-            "httpx",
-            "openai"
-        ]
-        for name in loggers_to_silence:
-            logging.getLogger(name).setLevel(logging.ERROR)
-        # Root logger also to ERROR
-        logging.getLogger().setLevel(logging.ERROR)
-            
     if limit:
-        print(f"⚠️ Limitando ejecución a los primeros {limit} casos.")
+        if not compact_mode: print(f"⚠️ Limitando ejecución a los primeros {limit} casos.")
         test_cases = test_cases[:limit]
 
     # Ejecutar pruebas
     resultados = []
     
-    print("\n" + "=" * 80)
-    print(f"🚀 INICIANDO EJECUCIÓN {'(MODO RESUMIDO)' if compact_mode else '(MODO VERBORRÁGICO)'}")
-    print("=" * 80)
+    if not compact_mode:
+        print("\n" + "=" * 80)
+        print(f"🚀 INICIANDO EJECUCIÓN (MODO VERBORRÁGICO)")
+        print("=" * 80)
+    else:
+        print("\n" + "=" * 80)
+        print(f"🚀 INICIANDO EJECUCIÓN (MODO RESUMIDO)")
+        print("=" * 80)
+    
+    default_phone = "+5491112345001"
     
     for i, test in enumerate(test_cases, 1):
         # Determinar teléfono para este test

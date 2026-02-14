@@ -53,4 +53,4 @@ def setup_logging():
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     
-    logging.info("Logging configurado (Archivos + Consola)")
+    logging.debug("Logging configurado (Archivos + Consola)")
