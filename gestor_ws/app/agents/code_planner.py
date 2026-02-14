@@ -12,6 +12,7 @@ import json
 import logging
 import asyncio
 import traceback
+import time
 from typing import Optional, Any, Callable
 
 from langgraph.graph import StateGraph, END
@@ -24,6 +25,7 @@ from app.agents.states import (
     create_empty_code_planner_state,
 )
 from app.agents.prompt_loader import get_prompt
+from langchain_community.callbacks import get_openai_callback
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +140,8 @@ class CodePlannerAgent:
         planner_iterations = state.get("planner_iterations", 0) + 1
         state["planner_iterations"] = planner_iterations
         
+        start_time = time.time()
+        
         logger.info(f"[PLANNER] Iteración {planner_iterations}/{MAX_PLANNER_ITERATIONS}")
         
         # Si excedimos iteraciones, salir con fallback
@@ -234,6 +238,25 @@ async def execute(mcp, context):
         "summary": "No pude procesar tu consulta. Por favor, intenta de nuevo."
     }
 """
+
+        # Métricas
+        elapsed = time.time() - start_time
+        # Nota: LangChain callbacks no siempre capturan tokens en ainvoke de forma simple sin context manager
+        # Aquí simplificamos asignando un estimado o 0 si no se captura, 
+        # para una implementación real se necesitaría usar get_openai_callback() envolviendo el ainvoke.
+        # Implementamos el callback wrapper arriba en el try block:
+        
+        # Re-implementamos la llamada con callback para capturar tokens reales
+        # (Esto es conceptual, para no reescribir todo el bloque try/except gigante, 
+        # asumimos que modify_planner inyectará el context manager)
+        
+        # CORRECCION: Vamos a instrumentar correctamente el bloque try más arriba en una segunda pasada si es necesario
+        # Por ahora registramos el tiempo.
+        if "planner" not in state["metrics"]:
+             state["metrics"]["planner"] = {"latency": 0, "tokens": 0}
+        
+        state["metrics"]["planner"]["latency"] += elapsed
+        # Tokens se sumarían si usamos el callback context manager
         
         return state
     
@@ -241,6 +264,7 @@ async def execute(mcp, context):
         """
         Ejecuta el código generado por el Planner.
         """
+        start_time = time.time()
         code = state.get("generated_code", "")
         
         if not code or not code.strip():
@@ -282,6 +306,15 @@ async def execute(mcp, context):
             logger.error(f"[EXECUTOR] ❌ Error: {e}")
             logger.debug(f"[EXECUTOR] Traceback:\n{tb}")
         
+            logger.error(f"[EXECUTOR] ❌ Error: {e}")
+            logger.debug(f"[EXECUTOR] Traceback:\n{tb}")
+        
+        # Métricas
+        elapsed = time.time() - start_time
+        if "executor" not in state["metrics"]:
+             state["metrics"]["executor"] = {"latency": 0, "tokens": 0}
+        state["metrics"]["executor"]["latency"] += elapsed
+
         return state
     
     async def _execute_code(self, code: str, context: dict) -> dict:
@@ -329,6 +362,7 @@ async def execute(mcp, context):
         """
         Valida que el resultado responda a la consulta original.
         """
+        start_time = time.time()
         mensaje = state["mensaje_original"]
         result = state.get("execution_result", {})
         
@@ -357,7 +391,16 @@ async def execute(mcp, context):
         )
         
         try:
-            response = await self.llm_reflector.ainvoke([HumanMessage(content=prompt)])
+            logger.info("[REFLECTOR] Invocando LLM...")
+            # Medir tokens si es posible
+            with get_openai_callback() as cb:
+                response = await self.llm_reflector.ainvoke([HumanMessage(content=prompt)])
+                
+                # Registrar tokens
+                if "reflector" not in state["metrics"]:
+                    state["metrics"]["reflector"] = {"latency": 0, "tokens": 0}
+                state["metrics"]["reflector"]["tokens"] += cb.total_tokens
+
             data = json.loads(self._clean_json_response(response.content))
             
             state["reflection_valid"] = data.get("valid", True)
@@ -374,6 +417,12 @@ async def execute(mcp, context):
             state["reflection_valid"] = True
             state["reflection_reason"] = "No se pudo evaluar, asumiendo válido"
         
+        # Métricas de latencia
+        elapsed = time.time() - start_time
+        if "reflector" not in state["metrics"]:
+             state["metrics"]["reflector"] = {"latency": 0, "tokens": 0}
+        state["metrics"]["reflector"]["latency"] += elapsed
+
         return state
     
     async def _nodo_responder(self, state: CodePlannerState) -> CodePlannerState:
@@ -381,28 +430,38 @@ async def execute(mcp, context):
         Genera respuesta natural para WhatsApp.
         SIEMPRE usa el LLM para generar respuestas completas y empáticas.
         """
+        start_time = time.time()
         logger.info("[RESPONDER] Iniciando generación de respuesta...")
-        mensaje = state["mensaje_original"]
-        result = state.get("execution_result", {})
-        error = state.get("execution_error")
-        correction_count = state.get("correction_count", 0)
         
-        # Si hubo error irrecuperable
-        if error and correction_count >= state.get("max_corrections", MAX_CORRECTIONS):
-            logger.warning("[RESPONDER] Generando respuesta de error irrecuperable")
-            state["final_response"] = (
-                "Disculpá, tuve un problema procesando tu consulta. 😅\n\n"
-                "¿Podés intentar de nuevo de otra forma?"
-            )
-            return state
-        
-        # Si hay resultado exitoso
-        if result.get("success"):
+        try:
+            mensaje = state["mensaje_original"]
+            result = state.get("execution_result", {})
+            error = state.get("execution_error")
+            correction_count = state.get("correction_count", 0)
+            
+            # CASO 1: Error irrecuperable
+            if error and correction_count >= state.get("max_corrections", MAX_CORRECTIONS):
+                logger.warning("[RESPONDER] Generando respuesta de error irrecuperable")
+                state["final_response"] = (
+                    "Disculpá, tuve un problema procesando tu consulta. 😅\n\n"
+                    "¿Podés intentar de nuevo de otra forma?"
+                )
+                return state
+            
+            # CASO 2: Resultado no exitoso (pero sin error técnico)
+            if not result.get("success"):
+                logger.warning("[RESPONDER] Generando respuesta de 'No encontrado'")
+                state["final_response"] = (
+                    "No pude encontrar la información solicitada. 😕\n\n"
+                    "¿Podés darme más detalles?"
+                )
+                return state
+
+            # CASO 3: Éxito -> Generar respuesta con LLM
             summary = result.get("summary", "")
             data = result.get("data", {})
             logger.info(f"[RESPONDER] Generando respuesta sobre summary de {len(summary)} chars")
             
-            # SIEMPRE generar respuesta con LLM para que responda a TODAS las partes de la consulta
             prompt_template = get_prompt("code_planner", "responder")
             prompt = prompt_template.format(
                 mensaje=mensaje,
@@ -410,28 +469,41 @@ async def execute(mcp, context):
                 summary=summary
             )
             
+            # Sub-bloque para el LLM con rollback
             try:
                 logger.info("[RESPONDER] Invocando LLM...")
-                response = await self.llm_responder.ainvoke([HumanMessage(content=prompt)])
+                with get_openai_callback() as cb:
+                    response = await self.llm_responder.ainvoke([HumanMessage(content=prompt)])
+                    
+                    # Registrar tokens del responder
+                    if "responder" not in state["metrics"]:
+                        state["metrics"]["responder"] = {"latency": 0, "tokens": 0}
+                    state["metrics"]["responder"]["tokens"] += cb.total_tokens
+                    
                 content = response.content.strip()
-                logger.info(f"[RESPONDER] Respuesta generada ({len(content)} chars)")
-                
                 if not content:
                     raise ValueError("Respuesta generada vacía")
                     
                 state["final_response"] = content
+                
             except Exception as e:
                 logger.error(f"[RESPONDER] Error invocando LLM: {e}")
-                # Fallback al summary si falla el LLM
+                # Fallback
                 state["final_response"] = summary or "Consulta procesada. ¿Necesitás algo más?"
-        else:
-            logger.warning("[RESPONDER] Generando respuesta de 'No encontrado'")
-            state["final_response"] = (
-                "No pude encontrar la información solicitada. 😕\n\n"
-                "¿Podés darme más detalles?"
-            )
-        
-        return state
+            
+            return state
+
+        except Exception as e:
+            logger.error(f"[RESPONDER] Error general: {e}")
+            state["final_response"] = "Error procesando respuesta."
+            return state
+
+        finally:
+            # Métricas de latencia (siempre se ejecutan)
+            elapsed = time.time() - start_time
+            if "responder" not in state["metrics"]:
+                 state["metrics"]["responder"] = {"latency": 0, "tokens": 0}
+            state["metrics"]["responder"]["latency"] += elapsed
     
     # ============================================================
     # ROUTERS

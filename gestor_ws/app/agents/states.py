@@ -39,6 +39,9 @@ class CodePlannerState(TypedDict):
     
     # Control de errores globales
     error: Optional[str]
+    
+    # Métricas de ejecución por nodo
+    metrics: dict  # { "planner": {"latency": 1.2, "tokens": 1500}, ... }
 
 
 # Alias para compatibilidad
@@ -66,7 +69,8 @@ def create_empty_code_planner_state(
         reflection_reason="",
         final_response=None,
         memory_context={},
-        error=None
+        error=None,
+        metrics={}
     )
 
 

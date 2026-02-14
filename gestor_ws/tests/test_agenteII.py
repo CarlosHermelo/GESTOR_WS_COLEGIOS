@@ -101,7 +101,7 @@ def validate_llm_configuration():
         
     return True
 
-def run_main_test(limit=None):
+def run_main_test(limit=None, resume_mode=False):
     """4. Ejecutar el script test_agente.py"""
     print("Iniciando test del agente principal...")
     print("Tomando datos de gestor_ws\\tests\\test_agente\\test_data_larga.txt\n\n----------------------------------------- ")
@@ -112,6 +112,8 @@ def run_main_test(limit=None):
     env["PYTHONPATH"] = str(GESTOR_WS_DIR)
     
     cmd = [str(VENV_PYTHON), str(test_path)]
+    if resume_mode:
+        cmd.append("--resume")
     if limit:
         print(f"Limitando a los primeros {limit} casos de prueba.")
         cmd.append(str(limit))
@@ -140,12 +142,15 @@ def check_erp_mock():
 def main():
     # Parse parameter
     limit = None
-    if len(sys.argv) > 1:
-        try:
-            limit = int(sys.argv[1])
-        except ValueError:
-            print("El parámetro debe ser un número entero.")
-            return
+    resume_mode = False
+    
+    args = sys.argv[1:]
+    for arg in args:
+        if arg == "--resume":
+            resume_mode = True
+        elif arg.isdigit():
+            limit = int(arg)
+        # Ignoramos otros args
 
     # 1. Check MCP
     if not check_mcp_server():
@@ -164,7 +169,7 @@ def main():
         sys.exit(1)
         
     # 4. Run Final Test
-    run_main_test(limit)
+    run_main_test(limit, resume_mode)
 
 if __name__ == "__main__":
     main()
