@@ -23,6 +23,7 @@ from app.agents.states import (
     CodePlannerState,
     create_empty_code_planner_state,
 )
+from app.agents.prompt_loader import get_prompt
 
 
 logger = logging.getLogger(__name__)
@@ -165,8 +166,9 @@ async def execute(mcp, context):
             tools_desc = """
 - consultar_estado_cuenta: Consulta cuotas pendientes de un responsable
 - obtener_link_pago: Genera link de pago para una cuota
+- buscar_info_institucional: Busca horarios, normativas y datos del colegio en el PDF institucional (RAG)
 - kg_query: Busca información en el Knowledge Graph del colegio
-- crear_ticket: Crea un ticket administrativo
+- crear_ticket: Crea un ticket administrativo (usar solo si la información no está en el PDF)
 """
         
         # Contexto de error previo
@@ -193,49 +195,15 @@ Genera código que responda mejor a la consulta original.
 """
             logger.info(f"[PLANNER] Corrigiendo por reflexión: {state.get('reflection_reason')}")
         
-        prompt = f"""Eres un Code Planner experto. Genera código Python para resolver la consulta del usuario.
-
-CONSULTA: {mensaje}
-
-CONTEXTO DEL USUARIO:
-- Teléfono: {state['phone_number']}
-- Datos: {json.dumps(user_context, ensure_ascii=False, default=str)}
-
-HERRAMIENTAS MCP DISPONIBLES:
-{tools_desc}
-
-{error_context}
-{reflection_context}
-
-REGLAS:
-1. Genera SOLO una función async llamada `execute(mcp, context)` que retorne un dict
-2. Usa `await mcp.call_tool("nombre_tool", {{"param": "valor"}})` para invocar tools
-3. El resultado de call_tool tiene: .success (bool), .data (dict/Any), .error (str/None)
-4. La función debe retornar un dict con:
-   - "success": bool
-   - "data": datos obtenidos
-   - "summary": resumen breve del resultado
-5. Maneja errores con try/except
-6. NO uses imports externos, todo está disponible en el contexto
-
-EJEMPLO:
-```python
-async def execute(mcp, context):
-    # Consultar estado de cuenta
-    result = await mcp.call_tool("consultar_estado_cuenta", {{"whatsapp": context["phone"]}})
-    
-    if not result.success:
-        return {{"success": False, "data": None, "summary": f"Error: {{result.error}}"}}
-    
-    return {{
-        "success": True,
-        "data": result.data,
-        "summary": f"Deuda total: ${{result.data.get('deuda_total', 0):,.0f}}"
-    }}
-```
-
-IMPORTANTE: Genera SOLO el código Python, sin explicaciones adicionales.
-"""
+        prompt_template = get_prompt("code_planner", "planner")
+        prompt = prompt_template.format(
+            mensaje=mensaje,
+            phone_number=state['phone_number'],
+            user_context=json.dumps(user_context, ensure_ascii=False, default=str),
+            tools_desc=tools_desc,
+            error_context=error_context,
+            reflection_context=reflection_context
+        )
         
         try:
             response = await self.llm_planner.ainvoke([HumanMessage(content=prompt)])
@@ -381,17 +349,12 @@ async def execute(mcp, context):
         if attempt >= 1:
             relax_rules = "NOTA: Ya se han realizado intentos de corrección. Sé flexible. Si hay información parcial relevante, márcalo como VÁLIDO (valid: true)."
 
-        prompt = f"""Eres el asistente del Colegio. Evalúa si el resultado responde a la consulta del usuario.
-{relax_rules}
-
-CONSULTA ORIGINAL: {mensaje}
-
-RESULTADO OBTENIDO:
-{json.dumps(result, ensure_ascii=False, default=str, indent=2)}
-
-Responde SOLO con JSON:
-{{"valid": true/false, "reason": "explicación breve"}}
-"""
+        prompt_template = get_prompt("code_planner", "reflector")
+        prompt = prompt_template.format(
+            relax_rules=relax_rules,
+            mensaje=mensaje,
+            result_json=json.dumps(result, ensure_ascii=False, default=str, indent=2)
+        )
         
         try:
             response = await self.llm_reflector.ainvoke([HumanMessage(content=prompt)])
@@ -440,27 +403,12 @@ Responde SOLO con JSON:
             logger.info(f"[RESPONDER] Generando respuesta sobre summary de {len(summary)} chars")
             
             # SIEMPRE generar respuesta con LLM para que responda a TODAS las partes de la consulta
-            prompt = f"""Eres el asistente del Colegio. Genera una respuesta natural y COMPLETA para WhatsApp.
-
-CONSULTA ORIGINAL DEL USUARIO: {mensaje}
-
-DATOS OBTENIDOS DEL SISTEMA:
-{json.dumps(data, ensure_ascii=False, default=str, indent=2)}
-
-RESUMEN DE LA OPERACIÓN: {summary}
-
-REGLAS IMPORTANTES:
-1. **Responde a TODAS las partes de la consulta del usuario**, no solo a los datos obtenidos
-2. Si el usuario preguntó algo que NO está en los datos (ej: ubicación, horarios, lugar de atención):
-   - Indica amablemente que consultarás con el área correspondiente
-   - O sugiere que contacte al colegio directamente para esa información específica
-3. Tono amigable, profesional y empático
-4. Usa emojis apropiados pero con moderación (máximo 3-4)
-5. Máximo 4 párrafos cortos y claros
-6. Resalta datos importantes con *negritas*
-7. Si hay inconsistencias en los datos (ej: deuda total pero 0 cuotas), acláralas o indica que lo verificarás
-8. Termina ofreciendo ayuda adicional o indicando próximos pasos
-"""
+            prompt_template = get_prompt("code_planner", "responder")
+            prompt = prompt_template.format(
+                mensaje=mensaje,
+                data_json=json.dumps(data, ensure_ascii=False, default=str, indent=2),
+                summary=summary
+            )
             
             try:
                 logger.info("[RESPONDER] Invocando LLM...")

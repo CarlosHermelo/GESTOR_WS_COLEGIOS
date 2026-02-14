@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrategia de Evaluación - Code Planner</title>
+    <!-- GitHub Markdown CSS -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
+    <style>
+        body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+            background-color: #f6f8fa;
+        }
+
+        .markdown-body {
+            padding: 45px;
+            background-color: white;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        @media (max-width: 767px) {
+            body {
+                padding: 15px;
+            }
+
+            .markdown-body {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <article class="markdown-body" id="content">
+        Cargando contenido y diagramas...
+    </article>
+
+    <!-- Libs - Usando versiones compatibles con file:// -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+
+    <script>
+        // Configuración de renderizado
+        async function render() {
+            try {
+                // El contenido Markdown
+                const markdown = `
+# Estrategia de Evaluación del Code Planner Agent
+
+Documento de estrategia para sistematizar la evaluación del agente Code Planner de GESTOR_WS, aplicando los principios del **Module 4: Practical Tips for Building Agentic AI** (Andrew Ng / DeepLearning.AI).
+
+---
+
+## 1. Mapeo: Tu Arquitectura → Framework del Módulo 4
+
+\`\`\`mermaid
+graph TD
+    A["🧪 End-to-End Eval<br/>AgenteAutonomo.procesar()"] --> B["📊 Component-Level Evals"]
+    B --> C["1. Planner<br/>¿Genera código correcto?"]
+    B --> D["2. Executor<br/>¿Ejecuta sin errores?"]
+    B --> E["3. Self-Correction<br/>¿Corrige efectivamente?"]
+    B --> F["4. Reflector<br/>¿Valida bien la respuesta?"]
+    B --> G["5. Responder<br/>¿Respuesta natural y completa?"]
+    
+    A --> H["🔍 Error Analysis<br/>Spreadsheet de trazas"]
+    H --> B
+\`\`\`
+
+| Concepto del PDF | Tu Componente |
+|---|---|
+| Trace completa | CodePlannerState |
+| End-to-End Eval | final_response vs esperado |
+| Error Analysis | Spreadsheet de trazas |
+
+---
+
+## 2. Las 5 Estrategias de Evaluación
+
+### Estrategia 1: End-to-End Evals con Dataset
+Evalúa la calidad global. Usar 20+ casos cubriendo:
+- Financiero simple / Mixto
+- Institucional (RAG)
+- Regla VALIDA NOMBRES
+- Identidad / context
+
+### Estrategia 2: Component-Level Evals
+Evaluar cada nodo aisladamente:
+- **Planner:** ¿Usa tools correctas? ¿Maneja multi-pregunta?
+- **Executor:** ¿Sin errores y en tiempo (<30s)?
+- **Reflector:** ¿Valida correctamente?
+- **Responder:** ¿Tono amigable y empático?
+
+### Estrategia 3: Error Analysis (Spreadsheet)
+Metodología de inspeccionar trazas de fallos y clasificar qué componente falló (Planner, Executor, etc.) para priorizar mejoras.
+
+### Estrategia 4: Métricas de Costo y Latencia
+Tracking de tokens y tiempos por nodo.
+- Alerta: >15s respuesta o >10k tokens por consulta.
+
+### Estrategia 5: Proceso Iterativo Build ↔ Analyze
+No es un proceso lineal. Ejecutar tests -> Analizar -> Ajustar Prompts -> Repetir.
+
+---
+
+## 3. Resumen Ejecutivo: Plan de Acción
+
+1. **Expandir test_data_larga.txt** con casos más complejos.
+2. **Sistematizar Error Analysis** anotando fallos por componente.
+3. **Ajustar prompts.json** basándose en la frecuencia de errores detectada.
+
+---
+> [!NOTE]
+> Este archivo es una previsualización visual. El contenido original está en el archivo .md
+`;
+
+                // 1. Renderizar Markdown
+                document.getElementById('content').innerHTML = marked.parse(markdown);
+
+                // 2. Inicializar y renderizar Mermaid explicitamente
+                if (typeof mermaid !== 'undefined') {
+                    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+                    await mermaid.run();
+                }
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('content').innerHTML = "Error cargando el contenido. Asegúrate de estar conectado a internet para cargar las librerías de estilos y diagramas.";
+            }
+        }
+
+        render();
+    </script>
+</body>
+
+</html>

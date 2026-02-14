@@ -1,52 +1,68 @@
 [
         {
-            "categoria": "SALUDO",
-            "mensaje": "Hola!",
-            "esperado": "Respuesta de bienvenida"
+            "categoria": "Deuda",
+            "mensaje": "Hola, quiero saber si mi hija Maruiquita tiene cuota pendiente ",
+            "celular": "+5491199999999",
+            "esperado": "Cuota pendiente"
+        },
+        {
+            "categoria": "Deuda",
+            "mensaje": "Hola, cual es mi deuda",
+            "celular": "+5491199999999",
+            "esperado": "Cuota pendiente"
         },
         {
             "categoria": "FINANCIERO - Estado de cuenta",
             "mensaje": "Cuánto debo?",
+            "celular": "+5491199999999",
             "esperado": "Estado de cuenta con cuotas pendientes"
         },
         {
             "categoria": "FINANCIERO - Link de pago",
             "mensaje": "Necesito el link para pagar la cuota de marzo",
+            "celular": "+5491199999999",
             "esperado": "Link de pago o instrucciones"
         },
         {
             "categoria": "ADMINISTRATIVO - Plan de pagos",
             "mensaje": "Quiero solicitar un plan de pagos porque no puedo pagar todo junto",
+            "celular": "+5491199999999",
             "esperado": "Creación de ticket de plan de pagos"
         },
         {
             "categoria": "ADMINISTRATIVO - Reclamo",
             "mensaje": "Tengo un reclamo, me cobraron de más en la cuota de febrero",
+            "celular": "+5491199999999",
             "esperado": "Creación de ticket de reclamo"
         },
         {
             "categoria": "INSTITUCIONAL - Horarios",
             "mensaje": "¿A qué hora empiezan las clases de primaria?",
+            "celular": "+5491199999999",
             "esperado": "Información de horarios"
         },
         {
             "categoria": "INSTITUCIONAL - Calendario",
             "mensaje": "¿Cuándo empiezan las clases este año?",
+            "celular": "+5491199999999",
             "esperado": "Fecha de inicio de clases"
         },
         {
             "categoria": "INSTITUCIONAL - Autoridades",
             "mensaje": "¿Quién es el director del colegio?",
+            "celular": "+5491199999999",
             "esperado": "Nombre del director"
         },
         {
             "categoria": "MIXTO - Financiero + Institucional",
             "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración?",
+            "celular": "+5491199999999",
             "esperado": "Estado de cuenta + horario de administración"
         },
         {
             "categoria": "TRIPLE - Financiero + Institucional ",
             "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración? Y qué autoridades hay?",
+            "celular": "+5491199999999",
             "esperado": "Estado de cuenta + horario de administración"
-        },
+        }
     ]

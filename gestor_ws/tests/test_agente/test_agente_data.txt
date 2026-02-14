@@ -1,7 +1,0 @@
-[
-     {
-            "categoria": "MIXTO - Financiero + Institucional",
-            "mensaje": "Debo cuotas? Y de paso, qué horario tiene administración?",
-            "esperado": "Estado de cuenta + horario de administración"
-        }
-]

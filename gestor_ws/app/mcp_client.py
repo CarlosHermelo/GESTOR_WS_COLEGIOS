@@ -193,6 +193,9 @@ class MCPClient:
             
             data = response.json()
             
+            # DEBUG: Log completo de la respuesta
+            logger.info(f"[MCP_DEBUG] Tool '{name}' response: success={data.get('success')}, data keys={list(data.get('data', {}).keys()) if isinstance(data.get('data'), dict) else type(data.get('data'))}")
+            
             return ToolResult(
                 success=data.get("success", False),
                 data=data.get("data"),

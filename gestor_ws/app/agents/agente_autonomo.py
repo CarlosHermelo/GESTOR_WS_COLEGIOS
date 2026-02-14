@@ -23,8 +23,10 @@ class AgenteAutonomo:
     def __init__(self):
         """Inicializa el agente."""
         self._code_planner: Optional[CodePlannerAgent] = None
-        self.erp = get_erp_client()
-        logger.info("AgenteAutonomo inicializado (Code Planner)")
+        # FORCE: Usar localhost explícitamente para pruebas locales
+        from app.adapters.mock_erp_adapter import MockERPAdapter
+        self.erp = MockERPAdapter(base_url="http://localhost:8001")
+        logger.info("AgenteAutonomo inicializado (Code Planner) con ERP local")
     
     def _get_code_planner(self) -> CodePlannerAgent:
         """Obtiene o crea el Code Planner."""

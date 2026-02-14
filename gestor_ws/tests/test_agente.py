@@ -34,19 +34,20 @@ async def test_agente():
     
     # Cargar casos de prueba desde archivo externo
     base_path = os.path.dirname(__file__)
-    data_path = os.path.join(base_path, "test_agente", "test_agente_data.txt")
+    data_path = os.path.join(base_path, "test_agente", "test_data_larga.txt")
     
     try:
         if os.path.exists(data_path):
             with open(data_path, "r", encoding="utf-8") as f:
                 test_cases = json.load(f)
-            print(f"📂 Casos de prueba cargados desde: {data_path}")
+            print(f"📂 Casos de prueba cargados REALMENTE desde: {data_path}")
         else:
             print(f"⚠️ No se encontró el archivo de datos en {data_path}, usando fallback.")
             test_cases = [
                 {
                     "categoria": "Fallback - Estado de cuenta",
                     "mensaje": "Hola, tengo deuda?",
+                    "celular": "+5491112345001",
                     "esperado": "Estado de cuenta"
                 }
             ]
@@ -54,16 +55,29 @@ async def test_agente():
         print(f"❌ Error cargando {data_path}: {e}")
         return False
     
-    # Número de WhatsApp de prueba
-    phone = "+5491112345001"
+    # Número de WhatsApp por defecto (si no viene en el test case)
+    default_phone = "+5491112345001"
     
+    # Limitar casos de prueba si se pasa argumento
+    if len(sys.argv) > 1:
+        try:
+            limit = int(sys.argv[1])
+            print(f"⚠️ Limitando ejecución a los primeros {limit} casos.")
+            test_cases = test_cases[:limit]
+        except ValueError:
+            pass
+
     # Ejecutar pruebas
     resultados = []
     
     for i, test in enumerate(test_cases, 1):
+        # Determinar teléfono para este test
+        phone = test.get("celular", default_phone)
+        
         print(f"\n{'─' * 70}")
         print(f"📌 TEST {i}/{len(test_cases)}: {test['categoria']}")
         print(f"{'─' * 70}")
+        print(f"📱 PHONE: {phone}")
         print(f"📥 INPUT: {test['mensaje']}")
         print(f"🎯 ESPERADO: {test['esperado']}")
         print("─" * 40)

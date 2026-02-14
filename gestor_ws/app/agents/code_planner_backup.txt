@@ -1,2 +1,0 @@
-# Respaldo temporal de code_planner.py
-# (El contenido ya está en memoria y en el archivo actual)

@@ -90,16 +90,22 @@ class MockERPAdapter(ERPClientInterface):
     
     async def get_responsable_by_whatsapp(self, whatsapp: str) -> dict:
         """Busca responsable por número de WhatsApp."""
+        url = f"/api/v1/responsables/by-whatsapp/{whatsapp}"
         try:
-            response = await self.client.get(
-                f"/api/v1/responsables/by-whatsapp/{whatsapp}"
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                logger.warning(f"Responsable con WhatsApp {whatsapp} no encontrado")
+            logger.info(f"Consultando ERP: {self.base_url}{url}")
+            response = await self.client.get(url)
+            
+            if response.status_code == 404:
+                logger.warning(f"Responsable con WhatsApp {whatsapp} no encontrado (404)")
                 return {}
+                
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Responsable encontrado: {data.get('nombre')} {data.get('apellido')}")
+            return data
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error consultando ERP: {e.response.status_code} - {e.response.text}")
             raise
         except Exception as e:
             logger.error(f"Error buscando responsable por WhatsApp {whatsapp}: {e}")

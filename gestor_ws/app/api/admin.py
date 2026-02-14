@@ -25,6 +25,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
+@router.get("/prompts")
+async def get_prompts():
+    """
+    Retorna el contenido actual de prompts.json
+    """
+    import json
+    from pathlib import Path
+    
+    # Intentar rutas posibles
+    paths_to_try = [
+        Path("app/agents/prompts.json"),  # Desde root
+        Path(__file__).parent.parent / "agents" / "prompts.json"  # Relativo a admin.py
+    ]
+    
+    prompts_path = None
+    for p in paths_to_try:
+        if p.exists():
+            prompts_path = p
+            break
+            
+    if not prompts_path:
+        logger.error(f"No se encuentra prompts.json. Buscado en: {[str(p) for p in paths_to_try]}")
+        raise HTTPException(status_code=404, detail="Prompts file not found")
+
+    try:
+        with open(prompts_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error leyendo prompts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @router.get("/tickets", response_model=TicketListResponse)
 async def list_tickets(
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
