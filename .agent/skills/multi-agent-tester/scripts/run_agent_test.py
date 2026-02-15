@@ -8,7 +8,7 @@ def run_test():
     gestor_dir = os.path.join(project_root, "gestor_ws")
     
     args = sys.argv[1:]
-    cmd = [sys.executable, "-m", "app.agents.test_agente"] + args
+    cmd = [sys.executable, "-m", "tests.test_agenteII"] + args
     
     print(f"🚀 Iniciando Test de Multi-Agente...")
     try:
